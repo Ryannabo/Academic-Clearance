@@ -1,17 +1,16 @@
-// src/components/StudentDashboard.jsx (Final Version)
+// src/components/StudentDashboard.jsx (Restructured Database)
 import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   collection, 
   query, 
-  where, 
   getDocs, 
-  addDoc,
+  setDoc,
   updateDoc,
   doc,
   onSnapshot,
-  serverTimestamp 
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import jsPDF from 'jspdf';
@@ -30,7 +29,7 @@ const departments = [
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [requirements, setRequirements] = useState([]);
+  const [requirements, setRequirements] = useState({});
   const [requirementTemplates, setRequirementTemplates] = useState({});
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -41,12 +40,9 @@ export default function StudentDashboard() {
 
     const fetchStudentData = async () => {
       try {
-        const studentDoc = await getDocs(
-          query(collection(db, 'students'), where('__name__', '==', user.uid))
-        );
-        
-        if (!studentDoc.empty) {
-          setStudentData({ id: studentDoc.docs[0].id, ...studentDoc.docs[0].data() });
+        const studentDoc = await getDoc(doc(db, 'students', user.uid));
+        if (studentDoc.exists()) {
+          setStudentData({ id: studentDoc.id, ...studentDoc.data() });
         }
       } catch (error) {
         console.error('Error fetching student data:', error);
@@ -69,78 +65,36 @@ export default function StudentDashboard() {
       setRequirementTemplates(templates);
     });
 
-    // Subscribe to clearance requirements
-    const requirementsQuery = query(
-      collection(db, 'clearance_requirements'),
-      where('studentId', '==', user.uid)
-    );
-
-    const unsubscribe = onSnapshot(requirementsQuery, (snapshot) => {
-      const reqs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setRequirements(reqs);
-      setLoading(false);
+    // Subscribe to each department's requirement for this student
+    const unsubscribers = departments.map(dept => {
+      const reqDocRef = doc(db, 'clearance_requirements', dept.id, 'students', user.uid);
+      
+      return onSnapshot(reqDocRef, (docSnap) => {
+        setRequirements(prev => ({
+          ...prev,
+          [dept.id]: docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null
+        }));
+      });
     });
 
+    setLoading(false);
+
     return () => {
-      unsubscribe();
       unsubscribeTemplates();
+      unsubscribers.forEach(unsub => unsub());
     };
   }, [user]);
 
+  // Remove the automatic initialization - only create when uploading
+  // Delete or comment out this entire useEffect
+  /*
   useEffect(() => {
-    const initializeClearance = async () => {
-      if (!user || requirements.length > 0) return;
-
-      try {
-        const clearanceQuery = query(
-          collection(db, 'clearances'),
-          where('studentId', '==', user.uid)
-        );
-        const clearanceSnapshot = await getDocs(clearanceQuery);
-
-        if (clearanceSnapshot.empty) {
-          // Create new clearance
-          const clearanceRef = await addDoc(collection(db, 'clearances'), {
-            studentId: user.uid,
-            studentName: user.name,
-            status: 'pending',
-            createdAt: serverTimestamp()
-          });
-
-          // Check which departments already have requirements
-          const existingReqsQuery = query(
-            collection(db, 'clearance_requirements'),
-            where('studentId', '==', user.uid)
-          );
-          const existingReqsSnapshot = await getDocs(existingReqsQuery);
-          const existingDepartments = existingReqsSnapshot.docs.map(doc => doc.data().department);
-
-          // Only create requirements for departments that don't exist
-          const missingDepartments = departments.filter(dept => !existingDepartments.includes(dept.id));
-          
-          const requirementPromises = missingDepartments.map(dept =>
-            addDoc(collection(db, 'clearance_requirements'), {
-              clearanceId: clearanceRef.id,
-              studentId: user.uid,
-              department: dept.id,
-              status: 'pending',
-              files: [],
-              createdAt: serverTimestamp()
-            })
-          );
-
-          await Promise.all(requirementPromises);
-        }
-      } catch (error) {
-        console.error('Error initializing clearance:', error);
-      }
+    const initializeRequirements = async () => {
+      // REMOVED - Don't auto-create for all departments
     };
-
-    initializeClearance();
-  }, [user, requirements]);
+    initializeRequirements();
+  }, [user, studentData, requirements]);
+  */
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -165,12 +119,6 @@ export default function StudentDashboard() {
     setUploading(prev => ({ ...prev, [deptId]: true }));
 
     try {
-      const requirement = requirements.find(r => r.department === deptId);
-      if (!requirement) {
-        alert('Requirement not found');
-        return;
-      }
-
       const uploadPromises = files.map(async (file) => {
         const base64 = await fileToBase64(file);
         return {
@@ -184,18 +132,39 @@ export default function StudentDashboard() {
 
       const uploadedFiles = await Promise.all(uploadPromises);
 
-      const requirementRef = doc(db, 'clearance_requirements', requirement.id);
-      await updateDoc(requirementRef, {
-        files: [...(requirement.files || []), ...uploadedFiles],
-        status: 'pending',
-        updatedAt: serverTimestamp()
-      });
+      // Reference to this department's document for this student
+      const reqDocRef = doc(db, 'clearance_requirements', deptId, 'students', user.uid);
+      const currentReq = requirements[deptId];
+      
+      if (currentReq) {
+        // Document exists - update it
+        await updateDoc(reqDocRef, {
+          files: [...(currentReq.files || []), ...uploadedFiles],
+          status: 'pending',
+          updatedAt: new Date().toISOString()
+        });
+      } else {
+        // Document doesn't exist - create it with files
+        await setDoc(reqDocRef, {
+          studentId: user.uid,
+          studentName: studentData?.name || user.name,
+          studentIdNumber: studentData?.studentId,
+          course: studentData?.course,
+          yearLevel: studentData?.yearLevel,
+          semester: studentData?.semester,
+          email: user.email,
+          status: 'pending',
+          files: uploadedFiles,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
 
-      alert('Files uploaded successfully! Status reset to pending for review.');
+      alert(`✅ Files uploaded successfully to ${departments.find(d => d.id === deptId)?.name}!`);
       event.target.value = '';
     } catch (error) {
       console.error('Error uploading files:', error);
-      alert('Failed to upload files. Please try again.');
+      alert('❌ Failed to upload files. Please try again.');
     } finally {
       setUploading(prev => ({ ...prev, [deptId]: false }));
     }
@@ -218,13 +187,13 @@ export default function StudentDashboard() {
     doc.text(`Year Level: ${studentData.yearLevel || 'N/A'}`, 20, 70);
     doc.text(`Semester: ${studentData.semester || 'N/A'}`, 20, 80);
     
-    const tableData = requirements.map(req => {
-      const dept = departments.find(d => d.id === req.department);
+    const tableData = departments.map(dept => {
+      const req = requirements[dept.id];
       return [
-        dept?.name || req.department,
-        req.status?.toUpperCase() || 'PENDING',
-        req.files?.length || 0,
-        req.approvedAt ? new Date(req.approvedAt.seconds * 1000).toLocaleDateString() : 'N/A'
+        dept.name,
+        req?.status?.toUpperCase() || 'PENDING',
+        req?.files?.length || 0,
+        req?.approvedAt ? new Date(req.approvedAt).toLocaleDateString() : 'N/A'
       ];
     });
     
@@ -241,7 +210,7 @@ export default function StudentDashboard() {
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, finalY + 20);
     
-    const allApproved = requirements.every(r => r.status === 'approved');
+    const allApproved = departments.every(d => requirements[d.id]?.status === 'approved');
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     if (allApproved) {
@@ -288,8 +257,9 @@ export default function StudentDashboard() {
     }
   };
 
-  const approvedCount = requirements.filter(r => r.status === 'approved').length;
-  const progress = requirements.length > 0 ? (approvedCount / requirements.length) * 100 : 0;
+  const approvedCount = departments.filter(d => requirements[d.id]?.status === 'approved').length;
+  const submittedCount = departments.filter(d => requirements[d.id]).length;
+  const progress = submittedCount > 0 ? (approvedCount / submittedCount) * 100 : 0;
 
   if (loading) {
     return (
@@ -334,9 +304,12 @@ export default function StudentDashboard() {
               </p>
               <div className="mt-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">Overall Progress:</span>
+                  <span className="text-sm font-medium">Clearance Progress:</span>
                   <span className="text-sm text-indigo-600 font-bold">
-                    {approvedCount}/{requirements.length} Completed
+                    {approvedCount}/{submittedCount} Approved
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    ({submittedCount}/7 departments submitted)
                   </span>
                 </div>
                 <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -388,9 +361,22 @@ export default function StudentDashboard() {
         {activeTab === 'overview' && (
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-xl font-bold mb-4">Clearance Status by Department</h3>
+            
+            {/* Show message if no submissions yet */}
+            {Object.keys(requirements).filter(k => requirements[k]).length === 0 && (
+              <div className="text-center py-12 bg-gray-50 rounded-lg">
+                <FileText className="mx-auto mb-4 text-gray-400" size={48} />
+                <p className="text-gray-600 mb-2">No submissions yet</p>
+                <p className="text-sm text-gray-500">Go to "Upload Files" tab to submit your requirements</p>
+              </div>
+            )}
+            
             <div className="space-y-3">
               {departments.map(dept => {
-                const req = requirements.find(r => r.department === dept.id);
+                const req = requirements[dept.id];
+                // Only show departments where student has submitted
+                if (!req) return null;
+                
                 return (
                   <div key={dept.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-2">
@@ -399,19 +385,19 @@ export default function StudentDashboard() {
                         <div>
                           <p className="font-semibold">{dept.name}</p>
                           <p className="text-sm text-gray-500">
-                            {req?.files?.length || 0} file{(req?.files?.length || 0) !== 1 ? 's' : ''} uploaded
+                            {req.files?.length || 0} file{(req.files?.length || 0) !== 1 ? 's' : ''} uploaded
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`flex items-center gap-1 font-medium ${getStatusColor(req?.status)}`}>
-                          {getStatusIcon(req?.status)}
-                          {getStatusText(req?.status)}
+                        <span className={`flex items-center gap-1 font-medium ${getStatusColor(req.status)}`}>
+                          {getStatusIcon(req.status)}
+                          {getStatusText(req.status)}
                         </span>
                       </div>
                     </div>
                     
-                    {req?.status === 'rejected' && req?.rejectionReason && (
+                    {req.status === 'rejected' && req.rejectionReason && (
                       <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                         <div className="flex items-start gap-2">
                           <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
@@ -444,7 +430,7 @@ export default function StudentDashboard() {
             <div className="space-y-6">
               {departments.map(dept => {
                 const deptRequirements = requirementTemplates[dept.id] || [];
-                const req = requirements.find(r => r.department === dept.id);
+                const req = requirements[dept.id];
                 
                 return (
                   <div key={dept.id} className="border rounded-lg p-5">
@@ -496,64 +482,75 @@ export default function StudentDashboard() {
         )}
 
         {activeTab === 'upload' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {departments.map(dept => {
-              const req = requirements.find(r => r.department === dept.id);
-              const isUploading = uploading[dept.id];
-              
-              return (
-                <div key={dept.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{dept.icon}</span>
-                    <h3 className="font-bold text-lg">{dept.name}</h3>
-                  </div>
+          <div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800">
+                📌 <strong>Upload files to each department separately.</strong> You can upload to one department now and others later. Each upload goes ONLY to the selected department.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departments.map(dept => {
+                const req = requirements[dept.id];
+                const isUploading = uploading[dept.id];
+                
+                return (
+                  <div key={dept.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-3xl">{dept.icon}</span>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-lg">{dept.name}</h3>
+                        <p className="text-xs text-gray-500">Upload files for this department only</p>
+                      </div>
+                    </div>
 
-                  <div className="space-y-3">
-                    <label className="block">
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors">
-                        <Upload className="mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-600">
-                          {isUploading ? 'Uploading...' : 'Click to upload files'}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (max 1MB each)</p>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          className="hidden"
-                          onChange={(e) => handleFileUpload(dept.id, e)}
-                          disabled={isUploading}
-                        />
-                      </div>
-                    </label>
-                    {req?.files && req.files.length > 0 && (
-                      <div className={`p-3 rounded-lg ${
-                        req.status === 'approved' ? 'bg-green-50 border border-green-200' :
-                        req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
-                        'bg-amber-50 border border-amber-200'
-                      }`}>
-                        <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${
-                          req.status === 'approved' ? 'text-green-700' :
-                          req.status === 'rejected' ? 'text-red-700' :
-                          'text-amber-700'
-                        }`}>
-                          {getStatusIcon(req.status)}
-                          <span className="ml-1">{getStatusText(req.status)}</span>
-                        </p>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {req.files.map((file, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-xs">
-                              <p className="text-gray-600 truncate flex-1">{file.name}</p>
-                              <span className="text-gray-400 ml-2">{(file.size / 1024).toFixed(1)}KB</span>
-                            </div>
-                          ))}
+                    <div className="space-y-3">
+                      <label className="block">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors">
+                          <Upload className="mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-600">
+                            {isUploading ? 'Uploading...' : 'Click to upload files'}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (max 1MB each)</p>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) => handleFileUpload(dept.id, e)}
+                            disabled={isUploading}
+                          />
                         </div>
-                      </div>
-                    )}
+                      </label>
+                      {req?.files && req.files.length > 0 && (
+                        <div className={`p-3 rounded-lg ${
+                          req.status === 'approved' ? 'bg-green-50 border border-green-200' :
+                          req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
+                          'bg-amber-50 border border-amber-200'
+                        }`}>
+                          <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${
+                            req.status === 'approved' ? 'text-green-700' :
+                            req.status === 'rejected' ? 'text-red-700' :
+                            'text-amber-700'
+                          }`}>
+                            {getStatusIcon(req.status)}
+                            <span className="ml-1">{getStatusText(req.status)}</span>
+                          </p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {req.files.map((file, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs">
+                                <p className="text-gray-600 truncate flex-1">{file.name}</p>
+                                <span className="text-gray-400 ml-2">{(file.size / 1024).toFixed(1)}KB</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

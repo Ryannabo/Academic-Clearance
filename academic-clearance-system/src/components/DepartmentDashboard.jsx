@@ -1,34 +1,31 @@
-// src/components/DepartmentDashboard.jsx (Final with Date Filter + Unique Student Check)
+// src/components/DepartmentDashboard.jsx (Restructured Database)
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, User, Bell, Eye, X, FileText, Download, Search, Filter, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   collection, 
   query, 
-  where, 
   onSnapshot,
   updateDoc,
   doc,
-  getDoc,
-  serverTimestamp 
+  getDocs
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const departments = [
-  { id: 'library', name: 'Library' },
-  { id: 'course_office', name: 'Course Office' },
-  { id: 'guidance', name: 'Guidance' },
-  { id: 'student_council', name: 'Student Council' },
-  { id: 'finance', name: 'Finance' },
-  { id: 'student_government', name: 'Student Government' },
-  { id: 'cashier', name: 'Cashier' }
+  { id: 'library', name: 'Library', subRole: 'dept_library' },
+  { id: 'course_office', name: 'Course Office', subRole: 'dept_course_office' },
+  { id: 'guidance', name: 'Guidance', subRole: 'dept_guidance' },
+  { id: 'student_council', name: 'Student Council', subRole: 'dept_student_council' },
+  { id: 'finance', name: 'Finance', subRole: 'dept_finance' },
+  { id: 'student_government', name: 'Student Government', subRole: 'dept_student_government' },
+  { id: 'cashier', name: 'Cashier', subRole: 'dept_cashier' }
 ];
 
 export default function DepartmentDashboard() {
   const { user, logout } = useAuth();
   const [requirements, setRequirements] = useState([]);
   const [filteredRequirements, setFilteredRequirements] = useState([]);
-  const [studentsData, setStudentsData] = useState({});
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,52 +43,33 @@ export default function DepartmentDashboard() {
   const [availableYearLevels, setAvailableYearLevels] = useState([]);
   const [availableSemesters, setAvailableSemesters] = useState([]);
 
-  const departmentName = departments.find(d => d.id === user?.department)?.name || 
-                         departments.find(d => d.subRole === user?.role)?.name || 
-                         'Department';
+  // Get department ID from user
+  const getDepartmentId = () => {
+    if (user.department) {
+      return user.department;
+    } else if (user.role?.startsWith('dept_')) {
+      return user.role.replace('dept_', '');
+    }
+    return null;
+  };
+
+  const departmentId = getDepartmentId();
+  const departmentName = departments.find(d => d.id === departmentId)?.name || 'Department';
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !departmentId) return;
 
-    // Get department ID from either old format or new sub-role format
-    let departmentId;
-    if (user.department) {
-      departmentId = user.department; // Old format: department field
-    } else if (user.role?.startsWith('dept_')) {
-      // New format: extract department from sub-role
-      // dept_library -> library
-      departmentId = user.role.replace('dept_', '');
-    } else {
-      console.error('Could not determine department for user:', user);
-      return;
-    }
-
-    const requirementsQuery = query(
-      collection(db, 'clearance_requirements'),
-      where('department', '==', departmentId)
-    );
-
-    const unsubscribe = onSnapshot(requirementsQuery, async (snapshot) => {
+    // Subscribe to THIS department's students subcollection only
+    const studentsCollectionRef = collection(db, 'clearance_requirements', departmentId, 'students');
+    
+    const unsubscribe = onSnapshot(studentsCollectionRef, (snapshot) => {
       const reqs = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
 
-      // Remove duplicates - keep only one requirement per student for this department
-      const uniqueReqs = [];
-      const seenStudents = new Set();
-      
-      reqs.forEach(req => {
-        if (!seenStudents.has(req.studentId)) {
-          uniqueReqs.push(req);
-          seenStudents.add(req.studentId);
-        } else {
-          console.warn(`Duplicate requirement found for student ${req.studentId}, ignoring duplicate ID: ${req.id}`);
-        }
-      });
-
-      setRequirements(uniqueReqs);
-      setFilteredRequirements(uniqueReqs);
+      setRequirements(reqs);
+      setFilteredRequirements(reqs);
 
       const newStats = {
         total: reqs.length,
@@ -101,37 +79,17 @@ export default function DepartmentDashboard() {
       };
       setStats(newStats);
 
-      // Get unique student IDs
-      const studentIds = [...new Set(reqs.map(r => r.studentId))];
-      const studentDataPromises = studentIds.map(async (id) => {
-        try {
-          const studentDoc = await getDoc(doc(db, 'students', id));
-          if (studentDoc.exists()) {
-            return { id, data: studentDoc.data() };
-          }
-          return { id, data: null };
-        } catch (error) {
-          console.error('Error fetching student:', error);
-          return { id, data: null };
-        }
-      });
-
-      const studentsArray = await Promise.all(studentDataPromises);
-      const studentsMap = {};
+      // Extract unique values for filters
       const courses = new Set();
       const yearLevels = new Set();
       const semesters = new Set();
       
-      studentsArray.forEach(({ id, data }) => {
-        if (data) {
-          studentsMap[id] = data;
-          if (data.course) courses.add(data.course);
-          if (data.yearLevel) yearLevels.add(data.yearLevel);
-          if (data.semester) semesters.add(data.semester);
-        }
+      reqs.forEach(req => {
+        if (req.course) courses.add(req.course);
+        if (req.yearLevel) yearLevels.add(req.yearLevel);
+        if (req.semester) semesters.add(req.semester);
       });
 
-      setStudentsData(studentsMap);
       setAvailableCourses(Array.from(courses).sort());
       setAvailableYearLevels(Array.from(yearLevels).sort());
       setAvailableSemesters(Array.from(semesters).sort());
@@ -139,61 +97,43 @@ export default function DepartmentDashboard() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, departmentId]);
 
   // Apply search and filters
   useEffect(() => {
     let filtered = requirements;
 
-    // Apply search
     if (searchTerm) {
       filtered = filtered.filter(req => {
-        const student = studentsData[req.studentId];
-        if (!student) return false;
-        
         const searchLower = searchTerm.toLowerCase();
         return (
-          student.name?.toLowerCase().includes(searchLower) ||
-          student.studentId?.toLowerCase().includes(searchLower) ||
-          student.course?.toLowerCase().includes(searchLower)
+          req.studentName?.toLowerCase().includes(searchLower) ||
+          req.studentIdNumber?.toLowerCase().includes(searchLower) ||
+          req.course?.toLowerCase().includes(searchLower)
         );
       });
     }
 
-    // Apply status filter
     if (filterStatus !== 'all') {
       filtered = filtered.filter(req => req.status === filterStatus);
     }
 
-    // Apply course filter
     if (filterCourse !== 'all') {
-      filtered = filtered.filter(req => {
-        const student = studentsData[req.studentId];
-        return student?.course === filterCourse;
-      });
+      filtered = filtered.filter(req => req.course === filterCourse);
     }
 
-    // Apply year level filter
     if (filterYearLevel !== 'all') {
-      filtered = filtered.filter(req => {
-        const student = studentsData[req.studentId];
-        return student?.yearLevel === filterYearLevel;
-      });
+      filtered = filtered.filter(req => req.yearLevel === filterYearLevel);
     }
 
-    // Apply semester filter
     if (filterSemester !== 'all') {
-      filtered = filtered.filter(req => {
-        const student = studentsData[req.studentId];
-        return student?.semester === filterSemester;
-      });
+      filtered = filtered.filter(req => req.semester === filterSemester);
     }
 
-    // Apply date filter
     if (dateFrom) {
       filtered = filtered.filter(req => {
         if (!req.createdAt) return false;
-        const createdDate = req.createdAt.toDate ? req.createdAt.toDate() : new Date(req.createdAt);
+        const createdDate = new Date(req.createdAt);
         return createdDate >= new Date(dateFrom);
       });
     }
@@ -201,7 +141,7 @@ export default function DepartmentDashboard() {
     if (dateTo) {
       filtered = filtered.filter(req => {
         if (!req.createdAt) return false;
-        const createdDate = req.createdAt.toDate ? req.createdAt.toDate() : new Date(req.createdAt);
+        const createdDate = new Date(req.createdAt);
         const toDate = new Date(dateTo);
         toDate.setHours(23, 59, 59, 999);
         return createdDate <= toDate;
@@ -209,15 +149,15 @@ export default function DepartmentDashboard() {
     }
 
     setFilteredRequirements(filtered);
-  }, [searchTerm, filterStatus, filterCourse, filterYearLevel, filterSemester, dateFrom, dateTo, requirements, studentsData]);
+  }, [searchTerm, filterStatus, filterCourse, filterYearLevel, filterSemester, dateFrom, dateTo, requirements]);
 
-  const approveStudent = async (requirementId) => {
+  const approveStudent = async (studentId) => {
     try {
-      const requirementRef = doc(db, 'clearance_requirements', requirementId);
-      await updateDoc(requirementRef, {
+      const reqDocRef = doc(db, 'clearance_requirements', departmentId, 'students', studentId);
+      await updateDoc(reqDocRef, {
         status: 'approved',
         approvedBy: user.uid,
-        approvedAt: serverTimestamp(),
+        approvedAt: new Date().toISOString(),
         rejectionReason: null,
         missingRequirements: null
       });
@@ -229,20 +169,20 @@ export default function DepartmentDashboard() {
     }
   };
 
-  const rejectStudent = async (requirementId) => {
+  const rejectStudent = async (studentId) => {
     const reason = prompt('Enter rejection reason:');
     if (!reason) return;
 
     const missing = prompt('What requirements are missing? (optional)');
 
     try {
-      const requirementRef = doc(db, 'clearance_requirements', requirementId);
-      await updateDoc(requirementRef, {
+      const reqDocRef = doc(db, 'clearance_requirements', departmentId, 'students', studentId);
+      await updateDoc(reqDocRef, {
         status: 'rejected',
         rejectionReason: reason,
         missingRequirements: missing || null,
         rejectedBy: user.uid,
-        rejectedAt: serverTimestamp()
+        rejectedAt: new Date().toISOString()
       });
       alert('Clearance rejected. Student will be notified.');
       setSelectedStudent(null);
@@ -253,11 +193,7 @@ export default function DepartmentDashboard() {
   };
 
   const viewStudent = (requirement) => {
-    const studentInfo = studentsData[requirement.studentId];
-    setSelectedStudent({
-      ...requirement,
-      studentInfo
-    });
+    setSelectedStudent(requirement);
   };
 
   const downloadFile = (file) => {
@@ -273,7 +209,7 @@ export default function DepartmentDashboard() {
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = new Date(timestamp);
     return date.toLocaleDateString();
   };
 
@@ -491,59 +427,56 @@ export default function DepartmentDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredRequirements.map(req => {
-                    const student = studentsData[req.studentId];
-                    return (
-                      <tr key={req.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">{student?.name || 'Loading...'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{student?.studentId || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{student?.course || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs">
-                          <div>{student?.yearLevel}</div>
-                          <div className="text-gray-500">{student?.semester}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                          {formatDate(req.createdAt)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">{req.files?.length || 0}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            req.status === 'approved' 
-                              ? 'bg-green-100 text-green-800' 
-                              : req.status === 'rejected'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {req.status || 'pending'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => viewStudent(req)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            <Eye size={18} className="inline mr-1" /> View
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filteredRequirements.map(req => (
+                    <tr key={req.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{req.studentName || 'N/A'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{req.studentIdNumber || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{req.course || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs">
+                        <div>{req.yearLevel}</div>
+                        <div className="text-gray-500">{req.semester}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                        {formatDate(req.createdAt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">{req.files?.length || 0}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          req.status === 'approved' 
+                            ? 'bg-green-100 text-green-800' 
+                            : req.status === 'rejected'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {req.status || 'pending'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => viewStudent(req)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          <Eye size={18} className="inline mr-1" /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {/* Student Details Modal */}
+        {/* Student Details Modal (same as before, just using req.id as studentId) */}
         {selectedStudent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h3 className="text-2xl font-bold">{selectedStudent.studentInfo?.name || 'Student'}</h3>
-                  <p className="text-gray-600">{selectedStudent.studentInfo?.studentId || 'N/A'}</p>
+                  <h3 className="text-2xl font-bold">{selectedStudent.studentName || 'Student'}</h3>
+                  <p className="text-gray-600">{selectedStudent.studentIdNumber || 'N/A'}</p>
                 </div>
                 <button 
                   onClick={() => setSelectedStudent(null)} 
@@ -557,19 +490,19 @@ export default function DepartmentDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-600">Course</p>
-                    <p className="font-medium">{selectedStudent.studentInfo?.course || 'N/A'}</p>
+                    <p className="font-medium">{selectedStudent.course || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Year Level</p>
-                    <p className="font-medium">{selectedStudent.studentInfo?.yearLevel || 'N/A'}</p>
+                    <p className="font-medium">{selectedStudent.yearLevel || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Semester</p>
-                    <p className="font-medium">{selectedStudent.studentInfo?.semester || 'N/A'}</p>
+                    <p className="font-medium">{selectedStudent.semester || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium text-sm">{selectedStudent.studentInfo?.email || 'N/A'}</p>
+                    <p className="font-medium text-sm">{selectedStudent.email || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Submitted Date</p>
