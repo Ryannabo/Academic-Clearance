@@ -6,7 +6,7 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
 
 const AuthContext = createContext();
@@ -88,9 +88,24 @@ export const AuthProvider = ({ children }) => {
           studentId: userData.studentId,
           course: userData.course,
           yearLevel: userData.yearLevel,
+          semester: userData.semester,
           email: email,
           createdAt: new Date().toISOString()
         });
+      }
+      
+      // Mark token as used (only for department signups)
+      if (userData.tokenId) {
+        try {
+          await updateDoc(doc(db, 'department_tokens', userData.tokenId), {
+            used: true,
+            usedAt: new Date().toISOString(),
+            usedBy: email
+          });
+        } catch (tokenError) {
+          console.error('Error marking token as used:', tokenError);
+          // Don't fail signup if token update fails
+        }
       }
 
       return userCredential.user;

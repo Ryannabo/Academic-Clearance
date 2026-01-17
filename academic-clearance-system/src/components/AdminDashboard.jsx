@@ -20,13 +20,13 @@ import {
 import { db } from '../firebase/config';
 
 const departments = [
-  { id: 'library', name: 'Library' },
-  { id: 'course_office', name: 'Course Office' },
-  { id: 'guidance', name: 'Guidance' },
-  { id: 'student_council', name: 'Student Council' },
-  { id: 'finance', name: 'Finance' },
-  { id: 'student_government', name: 'Student Government' },
-  { id: 'cashier', name: 'Cashier' }
+  { id: 'library', name: 'Library', subRole: 'dept_library' },
+  { id: 'course_office', name: 'Course Office', subRole: 'dept_course_office' },
+  { id: 'guidance', name: 'Guidance', subRole: 'dept_guidance' },
+  { id: 'student_council', name: 'Student Council', subRole: 'dept_student_council' },
+  { id: 'finance', name: 'Finance', subRole: 'dept_finance' },
+  { id: 'student_government', name: 'Student Government', subRole: 'dept_student_government' },
+  { id: 'cashier', name: 'Cashier', subRole: 'dept_cashier' }
 ];
 
 export default function AdminDashboard() {
@@ -137,15 +137,15 @@ export default function AdminDashboard() {
         department: newToken.department,
         expiresAt: expiryDate.toISOString(),
         used: false,
-        createdAt: serverTimestamp()
+        createdAt: new Date().toISOString()
       });
 
-      alert(`Token generated successfully!\n\nToken: ${token}\n\nShare this with the ${departments.find(d => d.id === newToken.department)?.name} department.`);
+      alert(`Token generated successfully!\n\nToken: ${token}\nExpires: ${expiryDate.toLocaleDateString()}\n\nShare this with the ${departments.find(d => d.id === newToken.department)?.name} department.`);
       setShowTokenModal(false);
       setNewToken({ department: 'library', expiresIn: 7 });
     } catch (error) {
       console.error('Error generating token:', error);
-      alert('Failed to generate token');
+      alert('Failed to generate token. Error: ' + error.message);
     }
   };
 
@@ -166,13 +166,13 @@ export default function AdminDashboard() {
       if (editingRequirement) {
         await updateDoc(doc(db, 'requirements_templates', editingRequirement.id), {
           ...newRequirement,
-          updatedAt: serverTimestamp()
+          updatedAt: new Date().toISOString()
         });
         alert('Requirement updated successfully');
       } else {
         await addDoc(collection(db, 'requirements_templates'), {
           ...newRequirement,
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString()
         });
         alert('Requirement added successfully');
       }
@@ -187,7 +187,7 @@ export default function AdminDashboard() {
       });
     } catch (error) {
       console.error('Error saving requirement:', error);
-      alert('Failed to save requirement');
+      alert('Failed to save requirement. Error: ' + error.message);
     }
   };
 
@@ -383,13 +383,16 @@ export default function AdminDashboard() {
                   {tokens.map(token => {
                     const isExpired = new Date(token.expiresAt) < new Date();
                     const deptName = departments.find(d => d.id === token.department)?.name;
+                    const expiryDate = new Date(token.expiresAt);
+                    const createdDate = token.createdAt ? new Date(token.createdAt) : null;
                     
                     return (
                       <tr key={token.id}>
                         <td className="px-6 py-4 font-mono text-sm">{token.token}</td>
                         <td className="px-6 py-4">{deptName}</td>
                         <td className="px-6 py-4 text-sm">
-                          {new Date(token.expiresAt).toLocaleDateString()}
+                          <div className="font-medium">{expiryDate.toLocaleDateString()}</div>
+                          <div className="text-xs text-gray-500">{expiryDate.toLocaleTimeString()}</div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${

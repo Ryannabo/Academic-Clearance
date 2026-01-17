@@ -1,6 +1,6 @@
-// src/components/DepartmentDashboard.jsx (Enhanced with Search & Filter)
+// src/components/DepartmentDashboard.jsx (Final with Date Filter + Unique Student Check)
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, User, Bell, Eye, X, FileText, Download, Search, Filter } from 'lucide-react';
+import { CheckCircle, Clock, User, Bell, Eye, X, FileText, Download, Search, Filter, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   collection, 
@@ -38,14 +38,33 @@ export default function DepartmentDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCourse, setFilterCourse] = useState('all');
+  const [filterYearLevel, setFilterYearLevel] = useState('all');
+  const [filterSemester, setFilterSemester] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [availableCourses, setAvailableCourses] = useState([]);
+  const [availableYearLevels, setAvailableYearLevels] = useState([]);
+  const [availableSemesters, setAvailableSemesters] = useState([]);
 
-  const departmentName = departments.find(d => d.id === user?.role)?.name || user?.department;
+  const departmentName = departments.find(d => d.id === user?.department)?.name || 
+                         departments.find(d => d.subRole === user?.role)?.name || 
+                         'Department';
 
   useEffect(() => {
     if (!user) return;
 
-    const departmentId = user.role !== 'student' ? user.role : user.department;
+    // Get department ID from either old format or new sub-role format
+    let departmentId;
+    if (user.department) {
+      departmentId = user.department; // Old format: department field
+    } else if (user.role?.startsWith('dept_')) {
+      // New format: extract department from sub-role
+      // dept_library -> library
+      departmentId = user.role.replace('dept_', '');
+    } else {
+      console.error('Could not determine department for user:', user);
+      return;
+    }
 
     const requirementsQuery = query(
       collection(db, 'clearance_requirements'),
@@ -58,8 +77,21 @@ export default function DepartmentDashboard() {
         ...doc.data()
       }));
 
-      setRequirements(reqs);
-      setFilteredRequirements(reqs);
+      // Remove duplicates - keep only one requirement per student for this department
+      const uniqueReqs = [];
+      const seenStudents = new Set();
+      
+      reqs.forEach(req => {
+        if (!seenStudents.has(req.studentId)) {
+          uniqueReqs.push(req);
+          seenStudents.add(req.studentId);
+        } else {
+          console.warn(`Duplicate requirement found for student ${req.studentId}, ignoring duplicate ID: ${req.id}`);
+        }
+      });
+
+      setRequirements(uniqueReqs);
+      setFilteredRequirements(uniqueReqs);
 
       const newStats = {
         total: reqs.length,
@@ -69,6 +101,7 @@ export default function DepartmentDashboard() {
       };
       setStats(newStats);
 
+      // Get unique student IDs
       const studentIds = [...new Set(reqs.map(r => r.studentId))];
       const studentDataPromises = studentIds.map(async (id) => {
         try {
@@ -86,16 +119,22 @@ export default function DepartmentDashboard() {
       const studentsArray = await Promise.all(studentDataPromises);
       const studentsMap = {};
       const courses = new Set();
+      const yearLevels = new Set();
+      const semesters = new Set();
       
       studentsArray.forEach(({ id, data }) => {
         if (data) {
           studentsMap[id] = data;
           if (data.course) courses.add(data.course);
+          if (data.yearLevel) yearLevels.add(data.yearLevel);
+          if (data.semester) semesters.add(data.semester);
         }
       });
 
       setStudentsData(studentsMap);
-      setAvailableCourses(Array.from(courses));
+      setAvailableCourses(Array.from(courses).sort());
+      setAvailableYearLevels(Array.from(yearLevels).sort());
+      setAvailableSemesters(Array.from(semesters).sort());
       setLoading(false);
     });
 
@@ -134,8 +173,43 @@ export default function DepartmentDashboard() {
       });
     }
 
+    // Apply year level filter
+    if (filterYearLevel !== 'all') {
+      filtered = filtered.filter(req => {
+        const student = studentsData[req.studentId];
+        return student?.yearLevel === filterYearLevel;
+      });
+    }
+
+    // Apply semester filter
+    if (filterSemester !== 'all') {
+      filtered = filtered.filter(req => {
+        const student = studentsData[req.studentId];
+        return student?.semester === filterSemester;
+      });
+    }
+
+    // Apply date filter
+    if (dateFrom) {
+      filtered = filtered.filter(req => {
+        if (!req.createdAt) return false;
+        const createdDate = req.createdAt.toDate ? req.createdAt.toDate() : new Date(req.createdAt);
+        return createdDate >= new Date(dateFrom);
+      });
+    }
+
+    if (dateTo) {
+      filtered = filtered.filter(req => {
+        if (!req.createdAt) return false;
+        const createdDate = req.createdAt.toDate ? req.createdAt.toDate() : new Date(req.createdAt);
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        return createdDate <= toDate;
+      });
+    }
+
     setFilteredRequirements(filtered);
-  }, [searchTerm, filterStatus, filterCourse, requirements, studentsData]);
+  }, [searchTerm, filterStatus, filterCourse, filterYearLevel, filterSemester, dateFrom, dateTo, requirements, studentsData]);
 
   const approveStudent = async (requirementId) => {
     try {
@@ -197,6 +271,12 @@ export default function DepartmentDashboard() {
     setPreviewFile(file);
   };
 
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -243,7 +323,7 @@ export default function DepartmentDashboard() {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">Pending Review</p>
+                <p className="text-gray-600 text-sm">Pending</p>
                 <p className="text-3xl font-bold text-amber-600">{stats.pending}</p>
               </div>
               <Clock className="text-amber-600" size={40} />
@@ -273,52 +353,126 @@ export default function DepartmentDashboard() {
           <h2 className="text-2xl font-bold mb-6">Student Clearance Requests</h2>
           
           {/* Search and Filter Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search by name, ID, or course..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              />
+          <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="Search by name, ID, or course..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={filterCourse}
+                  onChange={(e) => setFilterCourse(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Courses</option>
+                  {availableCourses.map(course => (
+                    <option key={course} value={course}>{course}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={filterYearLevel}
+                  onChange={(e) => setFilterYearLevel(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Year Levels</option>
+                  {availableYearLevels.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <select
+                  value={filterSemester}
+                  onChange={(e) => setFilterSemester(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Semesters</option>
+                  {availableSemesters.map(sem => (
+                    <option key={sem} value={sem}>{sem}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 appearance-none"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="From date"
+                />
+              </div>
+
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  placeholder="To date"
+                />
+              </div>
             </div>
 
-            <div>
-              <select
-                value={filterCourse}
-                onChange={(e) => setFilterCourse(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 appearance-none"
-              >
-                <option value="all">All Courses</option>
-                {availableCourses.map(course => (
-                  <option key={course} value={course}>{course}</option>
-                ))}
-              </select>
-            </div>
+            {(searchTerm || filterStatus !== 'all' || filterCourse !== 'all' || filterYearLevel !== 'all' || filterSemester !== 'all' || dateFrom || dateTo) && (
+              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Showing {filteredRequirements.length} of {requirements.length} results
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterStatus('all');
+                    setFilterCourse('all');
+                    setFilterYearLevel('all');
+                    setFilterSemester('all');
+                    setDateFrom('');
+                    setDateTo('');
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
           </div>
 
           {filteredRequirements.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">
-                {searchTerm || filterStatus !== 'all' || filterCourse !== 'all' 
-                  ? 'No results found matching your filters' 
-                  : 'No clearance requests yet'}
+                {requirements.length === 0 
+                  ? 'No clearance requests yet' 
+                  : 'No results found matching your filters'}
               </p>
             </div>
           ) : (
@@ -326,32 +480,34 @@ export default function DepartmentDashboard() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Files</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Course</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year/Sem</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Files</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200">
                   {filteredRequirements.map(req => {
                     const student = studentsData[req.studentId];
                     return (
                       <tr key={req.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">{student?.name || 'Loading...'}</div>
-                          <div className="text-sm text-gray-500">{student?.yearLevel || ''}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student?.studentId || 'N/A'}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{student?.studentId || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{student?.course || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs">
+                          <div>{student?.yearLevel}</div>
+                          <div className="text-gray-500">{student?.semester}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {student?.course || 'N/A'}
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                          {formatDate(req.createdAt)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {req.files?.length || 0} files
-                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">{req.files?.length || 0}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             req.status === 'approved' 
@@ -363,7 +519,7 @@ export default function DepartmentDashboard() {
                             {req.status || 'pending'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
                             onClick={() => viewStudent(req)}
                             className="text-indigo-600 hover:text-indigo-900"
@@ -408,8 +564,16 @@ export default function DepartmentDashboard() {
                     <p className="font-medium">{selectedStudent.studentInfo?.yearLevel || 'N/A'}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-600">Semester</p>
+                    <p className="font-medium">{selectedStudent.studentInfo?.semester || 'N/A'}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-600">Email</p>
                     <p className="font-medium text-sm">{selectedStudent.studentInfo?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Submitted Date</p>
+                    <p className="font-medium text-sm">{formatDate(selectedStudent.createdAt)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Status</p>
@@ -497,9 +661,7 @@ export default function DepartmentDashboard() {
                   <CheckCircle className="mx-auto mb-2 text-green-600" size={32} />
                   <p className="text-green-800 font-medium">Already Approved</p>
                   <p className="text-sm text-green-700 mt-1">
-                    Approved on {selectedStudent.approvedAt ? 
-                      new Date(selectedStudent.approvedAt.seconds * 1000).toLocaleDateString() : 
-                      'N/A'}
+                    Approved on {formatDate(selectedStudent.approvedAt)}
                   </p>
                 </div>
               )}

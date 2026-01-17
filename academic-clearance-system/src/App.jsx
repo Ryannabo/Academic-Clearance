@@ -29,7 +29,11 @@ function AppContent() {
     return <AdminDashboard />;
   } else if (user.role === 'student') {
     return <StudentDashboard />;
+  } else if (user.role?.startsWith('dept_')) {
+    // All department sub-roles start with "dept_"
+    return <DepartmentDashboard />;
   } else {
+    // Fallback for old users without sub-roles
     return <DepartmentDashboard />;
   }
 }

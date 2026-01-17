@@ -1,4 +1,4 @@
-// src/components/Login.jsx
+// src/components/Login.jsx (Final Version)
 import React, { useState } from 'react';
 import { FileText, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -6,13 +6,36 @@ import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/fire
 import { db } from '../firebase/config';
 
 const departments = [
-  { id: 'library', name: 'Library' },
-  { id: 'course_office', name: 'Course Office' },
-  { id: 'guidance', name: 'Guidance' },
-  { id: 'student_council', name: 'Student Council' },
-  { id: 'finance', name: 'Finance' },
-  { id: 'student_government', name: 'Student Government' },
-  { id: 'cashier', name: 'Cashier' }
+  { id: 'library', name: 'Library', subRole: 'dept_library' },
+  { id: 'course_office', name: 'Course Office', subRole: 'dept_course_office' },
+  { id: 'guidance', name: 'Guidance', subRole: 'dept_guidance' },
+  { id: 'student_council', name: 'Student Council', subRole: 'dept_student_council' },
+  { id: 'finance', name: 'Finance', subRole: 'dept_finance' },
+  { id: 'student_government', name: 'Student Government', subRole: 'dept_student_government' },
+  { id: 'cashier', name: 'Cashier', subRole: 'dept_cashier' }
+];
+
+const courses = [
+  'BS Computer Science',
+  'BS Information Technology',
+  'BS Computer Engineering',
+  'BS Electronics Engineering',
+  'BS Civil Engineering',
+  'BS Mechanical Engineering',
+  'BS Electrical Engineering',
+  'BS Architecture',
+  'BS Accountancy',
+  'BS Business Administration',
+  'BS Hospitality Management',
+  'BS Tourism Management',
+  'BS Nursing',
+  'BS Psychology',
+  'BS Education',
+  'BS Mathematics',
+  'BS Biology',
+  'BS Chemistry',
+  'BA Communication',
+  'BA Political Science'
 ];
 
 export default function Login() {
@@ -26,6 +49,7 @@ export default function Login() {
     studentId: '',
     course: '',
     yearLevel: '',
+    semester: '',
     departmentToken: ''
   });
   const [loading, setLoading] = useState(false);
@@ -67,17 +91,11 @@ export default function Login() {
         return { valid: false, message: 'Token has expired' };
       }
 
-      // Mark token as used
-      await updateDoc(doc(db, 'department_tokens', tokenDoc.id), {
-        used: true,
-        usedAt: new Date().toISOString(),
-        usedBy: formData.email
-      });
-
+      // Return token info - will be marked as used after user is created
       return { valid: true, tokenId: tokenDoc.id };
     } catch (error) {
       console.error('Error verifying token:', error);
-      return { valid: false, message: 'Error verifying token' };
+      return { valid: false, message: 'Error verifying token: ' + error.message };
     }
   };
 
@@ -87,8 +105,10 @@ export default function Login() {
 
     try {
       if (isSignup) {
-        // Verify token for department signups
-        if (formData.role !== 'student' && formData.role !== 'admin') {
+        let tokenId = null;
+        
+        // Verify token for department signups (but don't mark as used yet)
+        if (formData.role !== 'student') {
           const verification = await verifyToken(formData.departmentToken, formData.role);
           
           if (!verification.valid) {
@@ -96,6 +116,8 @@ export default function Login() {
             setLoading(false);
             return;
           }
+          
+          tokenId = verification.tokenId;
         }
 
         const userData = {
@@ -104,7 +126,7 @@ export default function Login() {
         };
 
         if (formData.role === 'student') {
-          if (!formData.studentId || !formData.course || !formData.yearLevel) {
+          if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester) {
             alert('Please fill in all student information');
             setLoading(false);
             return;
@@ -112,11 +134,15 @@ export default function Login() {
           userData.studentId = formData.studentId;
           userData.course = formData.course;
           userData.yearLevel = formData.yearLevel;
-        } else if (formData.role !== 'admin') {
+          userData.semester = formData.semester;
+        } else {
           userData.department = formData.role;
+          userData.tokenId = tokenId; // Store token ID to mark as used later
         }
 
         await signup(formData.email, formData.password, userData);
+        
+        // Mark token as used after successful signup (via AuthContext)
       } else {
         await login(formData.email, formData.password);
       }
@@ -129,14 +155,10 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="text-center mb-8">
           <div className="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            {isSignup && formData.role === 'admin' ? (
-              <Shield className="text-white" size={32} />
-            ) : (
-              <FileText className="text-white" size={32} />
-            )}
+            <FileText className="text-white" size={32} />
           </div>
           <h1 className="text-3xl font-bold text-gray-800">Academic Clearance</h1>
           <p className="text-gray-600 mt-2">
@@ -156,7 +178,7 @@ export default function Login() {
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
             <input
@@ -207,7 +229,6 @@ export default function Login() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
                   <option value="student">Student</option>
-                  <option value="admin">Admin</option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
@@ -224,22 +245,25 @@ export default function Login() {
                       value={formData.studentId}
                       onChange={handleChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., STU-2024-001"
+                      placeholder="e.g., 2024-00001"
                       required
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
-                    <input
-                      type="text"
+                    <select
                       name="course"
                       value={formData.course}
                       onChange={handleChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="e.g., BS Computer Science"
                       required
-                    />
+                    >
+                      <option value="">Select Course</option>
+                      {courses.map(course => (
+                        <option key={course} value={course}>{course}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -256,12 +280,29 @@ export default function Login() {
                       <option value="2nd Year">2nd Year</option>
                       <option value="3rd Year">3rd Year</option>
                       <option value="4th Year">4th Year</option>
+                      <option value="5th Year">5th Year</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Semester</label>
+                    <select
+                      name="semester"
+                      value={formData.semester}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Semester</option>
+                      <option value="1st Semester">1st Semester</option>
+                      <option value="2nd Semester">2nd Semester</option>
+                      <option value="Summer">Summer</option>
                     </select>
                   </div>
                 </>
               )}
 
-              {formData.role !== 'student' && formData.role !== 'admin' && (
+              {formData.role !== 'student' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Department Access Token <span className="text-red-600">*</span>
@@ -277,15 +318,6 @@ export default function Login() {
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Contact admin to get your department access token
-                  </p>
-                </div>
-              )}
-
-              {formData.role === 'admin' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-sm text-amber-800">
-                    <Shield className="inline mr-1" size={16} />
-                    Admin accounts have full system access
                   </p>
                 </div>
               )}
@@ -313,6 +345,15 @@ export default function Login() {
             </button>
           </div>
         </div>
+
+        {!isSignup && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs text-gray-600 text-center">
+              <Shield className="inline mr-1" size={14} />
+              Admin access? Contact system administrator
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

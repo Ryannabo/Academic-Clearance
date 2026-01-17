@@ -1,6 +1,6 @@
-// src/components/StudentDashboard.jsx (Enhanced with Requirements Display)
+// src/components/StudentDashboard.jsx (Final Version)
 import React, { useState, useEffect } from 'react';
-import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle } from 'lucide-react';
+import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { 
   collection, 
@@ -35,7 +35,6 @@ export default function StudentDashboard() {
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState({});
-  const [selectedDept, setSelectedDept] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -103,6 +102,7 @@ export default function StudentDashboard() {
         const clearanceSnapshot = await getDocs(clearanceQuery);
 
         if (clearanceSnapshot.empty) {
+          // Create new clearance
           const clearanceRef = await addDoc(collection(db, 'clearances'), {
             studentId: user.uid,
             studentName: user.name,
@@ -110,7 +110,18 @@ export default function StudentDashboard() {
             createdAt: serverTimestamp()
           });
 
-          const requirementPromises = departments.map(dept =>
+          // Check which departments already have requirements
+          const existingReqsQuery = query(
+            collection(db, 'clearance_requirements'),
+            where('studentId', '==', user.uid)
+          );
+          const existingReqsSnapshot = await getDocs(existingReqsQuery);
+          const existingDepartments = existingReqsSnapshot.docs.map(doc => doc.data().department);
+
+          // Only create requirements for departments that don't exist
+          const missingDepartments = departments.filter(dept => !existingDepartments.includes(dept.id));
+          
+          const requirementPromises = missingDepartments.map(dept =>
             addDoc(collection(db, 'clearance_requirements'), {
               clearanceId: clearanceRef.id,
               studentId: user.uid,
@@ -173,17 +184,15 @@ export default function StudentDashboard() {
 
       const uploadedFiles = await Promise.all(uploadPromises);
 
-      // Reset status to pending if reuploading
       const requirementRef = doc(db, 'clearance_requirements', requirement.id);
       await updateDoc(requirementRef, {
         files: [...(requirement.files || []), ...uploadedFiles],
-        status: 'pending', // Reset to pending when new files uploaded
+        status: 'pending',
         updatedAt: serverTimestamp()
       });
 
       alert('Files uploaded successfully! Status reset to pending for review.');
       event.target.value = '';
-      setSelectedDept(null);
     } catch (error) {
       console.error('Error uploading files:', error);
       alert('Failed to upload files. Please try again.');
@@ -207,6 +216,7 @@ export default function StudentDashboard() {
     doc.text(`Student ID: ${studentData.studentId || 'N/A'}`, 20, 50);
     doc.text(`Course: ${studentData.course || 'N/A'}`, 20, 60);
     doc.text(`Year Level: ${studentData.yearLevel || 'N/A'}`, 20, 70);
+    doc.text(`Semester: ${studentData.semester || 'N/A'}`, 20, 80);
     
     const tableData = requirements.map(req => {
       const dept = departments.find(d => d.id === req.department);
@@ -219,7 +229,7 @@ export default function StudentDashboard() {
     });
     
     doc.autoTable({
-      startY: 85,
+      startY: 95,
       head: [['Department', 'Status', 'Files', 'Date Approved']],
       body: tableData,
       theme: 'grid',
@@ -227,7 +237,7 @@ export default function StudentDashboard() {
       styles: { fontSize: 10 }
     });
     
-    const finalY = doc.lastAutoTable.finalY || 85;
+    const finalY = doc.lastAutoTable.finalY || 95;
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, finalY + 20);
     
@@ -319,6 +329,9 @@ export default function StudentDashboard() {
             <div>
               <h2 className="text-2xl font-bold text-gray-800">Welcome, {user?.name}</h2>
               <p className="text-gray-600">Student ID: {studentData?.studentId || 'N/A'}</p>
+              <p className="text-sm text-gray-500">
+                {studentData?.course} - {studentData?.yearLevel} - {studentData?.semester}
+              </p>
               <div className="mt-3">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-sm font-medium">Overall Progress:</span>
@@ -354,12 +367,21 @@ export default function StudentDashboard() {
             Overview
           </button>
           <button
-            onClick={() => setActiveTab('requirements')}
+            onClick={() => setActiveTab('all-requirements')}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'requirements' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              activeTab === 'all-requirements' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
             }`}
           >
-            Upload Requirements
+            <FileText size={18} className="inline mr-1" />
+            All Requirements
+          </button>
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
+              activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+            }`}
+          >
+            Upload Files
           </button>
         </div>
 
@@ -412,12 +434,72 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {activeTab === 'requirements' && (
+        {activeTab === 'all-requirements' && (
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h3 className="text-xl font-bold mb-4">Department Requirements</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Below are all the requirements you need to submit for each department to get your clearance approved.
+            </p>
+            
+            <div className="space-y-6">
+              {departments.map(dept => {
+                const deptRequirements = requirementTemplates[dept.id] || [];
+                const req = requirements.find(r => r.department === dept.id);
+                
+                return (
+                  <div key={dept.id} className="border rounded-lg p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">{dept.icon}</span>
+                        <div>
+                          <h4 className="font-bold text-lg">{dept.name}</h4>
+                          <span className={`text-sm ${getStatusColor(req?.status)}`}>
+                            {getStatusText(req?.status)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {deptRequirements.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded">
+                        No specific requirements set for this department yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {deptRequirements.map((template, idx) => (
+                          <div key={template.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start gap-2">
+                              <span className="font-bold text-blue-900">{idx + 1}.</span>
+                              <div className="flex-1">
+                                <p className="font-semibold text-blue-900">
+                                  {template.title}
+                                  {template.required && (
+                                    <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                                      Required
+                                    </span>
+                                  )}
+                                </p>
+                                {template.description && (
+                                  <p className="text-sm text-blue-800 mt-1">{template.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'upload' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {departments.map(dept => {
               const req = requirements.find(r => r.department === dept.id);
               const isUploading = uploading[dept.id];
-              const deptRequirements = requirementTemplates[dept.id] || [];
               
               return (
                 <div key={dept.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
@@ -425,26 +507,6 @@ export default function StudentDashboard() {
                     <span className="text-3xl">{dept.icon}</span>
                     <h3 className="font-bold text-lg">{dept.name}</h3>
                   </div>
-
-                  {/* Display Department Requirements */}
-                  {deptRequirements.length > 0 && (
-                    <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <p className="text-sm font-semibold text-blue-900 mb-2">Required Documents:</p>
-                      <ul className="space-y-1">
-                        {deptRequirements.map(template => (
-                          <li key={template.id} className="text-xs text-blue-800">
-                            <span className={template.required ? 'font-semibold' : ''}>
-                              {template.required && '• '}
-                              {template.title}
-                            </span>
-                            {template.description && (
-                              <p className="text-xs text-blue-600 ml-2">{template.description}</p>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
 
                   <div className="space-y-3">
                     <label className="block">
@@ -466,31 +528,23 @@ export default function StudentDashboard() {
                     </label>
                     {req?.files && req.files.length > 0 && (
                       <div className={`p-3 rounded-lg ${
-                        req.status === 'approved' ? 'bg-green-50' :
-                        req.status === 'rejected' ? 'bg-red-50' :
-                        'bg-amber-50'
+                        req.status === 'approved' ? 'bg-green-50 border border-green-200' :
+                        req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
+                        'bg-amber-50 border border-amber-200'
                       }`}>
-                        <p className={`text-sm font-medium mb-2 ${
+                        <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${
                           req.status === 'approved' ? 'text-green-700' :
                           req.status === 'rejected' ? 'text-red-700' :
                           'text-amber-700'
                         }`}>
                           {getStatusIcon(req.status)}
-                          <span className="ml-1">
-                            {req.status === 'approved' ? '✓ Approved' :
-                             req.status === 'rejected' ? '✗ Rejected' :
-                             '⏳ Under Review'}
-                          </span>
+                          <span className="ml-1">{getStatusText(req.status)}</span>
                         </p>
                         <div className="space-y-1 max-h-32 overflow-y-auto">
                           {req.files.map((file, idx) => (
-                            <div key={idx} className="flex items-center justify-between">
-                              <p className="text-xs text-gray-600 truncate flex-1">
-                                {file.name}
-                              </p>
-                              <span className="text-xs text-gray-400 ml-2">
-                                {(file.size / 1024).toFixed(1)}KB
-                              </span>
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                              <p className="text-gray-600 truncate flex-1">{file.name}</p>
+                              <span className="text-gray-400 ml-2">{(file.size / 1024).toFixed(1)}KB</span>
                             </div>
                           ))}
                         </div>
