@@ -1,8 +1,8 @@
-// src/components/Login.jsx (Final Version)
-import React, { useState } from 'react';
-import { FileText, Shield } from 'lucide-react';
+// src/components/Login.jsx (Fixed - No Duplicate useEffect)
+import React, { useState, useEffect } from 'react';
+import { FileText, Shield, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const departments = [
@@ -39,8 +39,9 @@ const courses = [
 ];
 
 export default function Login() {
-  const { login, signup, error } = useAuth();
+  const { login, sendOTPForSignup, verifyOTPAndSignup, resendOTP, error } = useAuth();
   const [isSignup, setIsSignup] = useState(false);
+  const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -52,8 +53,18 @@ export default function Login() {
     semester: '',
     departmentToken: ''
   });
+  const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [tokenError, setTokenError] = useState('');
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  // Timer for resend OTP
+  useEffect(() => {
+    if (otpTimer > 0) {
+      const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [otpTimer]);
 
   const handleChange = (e) => {
     setFormData({
@@ -91,7 +102,6 @@ export default function Login() {
         return { valid: false, message: 'Token has expired' };
       }
 
-      // Return token info - will be marked as used after user is created
       return { valid: true, tokenId: tokenDoc.id };
     } catch (error) {
       console.error('Error verifying token:', error);
@@ -99,59 +109,189 @@ export default function Login() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSignupSubmit = async () => {
     setLoading(true);
     setTokenError('');
 
     try {
-      if (isSignup) {
-        let tokenId = null;
+      let tokenId = null;
+      
+      // Verify token for department signups
+      if (formData.role !== 'student') {
+        const verification = await verifyToken(formData.departmentToken, formData.role);
         
-        // Verify token for department signups (but don't mark as used yet)
-        if (formData.role !== 'student') {
-          const verification = await verifyToken(formData.departmentToken, formData.role);
-          
-          if (!verification.valid) {
-            setTokenError(verification.message);
-            setLoading(false);
-            return;
-          }
-          
-          tokenId = verification.tokenId;
+        if (!verification.valid) {
+          setTokenError(verification.message);
+          setLoading(false);
+          return;
         }
-
-        const userData = {
-          role: formData.role,
-          name: formData.name
-        };
-
-        if (formData.role === 'student') {
-          if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester) {
-            alert('Please fill in all student information');
-            setLoading(false);
-            return;
-          }
-          userData.studentId = formData.studentId;
-          userData.course = formData.course;
-          userData.yearLevel = formData.yearLevel;
-          userData.semester = formData.semester;
-        } else {
-          userData.department = formData.role;
-          userData.tokenId = tokenId; // Store token ID to mark as used later
-        }
-
-        await signup(formData.email, formData.password, userData);
         
-        // Mark token as used after successful signup (via AuthContext)
-      } else {
-        await login(formData.email, formData.password);
+        tokenId = verification.tokenId;
       }
+
+      // Validate student information
+      if (formData.role === 'student') {
+        if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester) {
+          alert('Please fill in all student information');
+          setLoading(false);
+          return;
+        }
+      }
+
+      const userData = {
+        role: formData.role,
+        name: formData.name
+      };
+
+      if (formData.role === 'student') {
+        userData.studentId = formData.studentId;
+        userData.course = formData.course;
+        userData.yearLevel = formData.yearLevel;
+        userData.semester = formData.semester;
+      } else {
+        userData.department = formData.role;
+        userData.tokenId = tokenId;
+      }
+
+      // Send OTP
+      await sendOTPForSignup(formData.email, userData);
+      setShowOTPVerification(true);
+      setOtpTimer(60); // 60 seconds before resend
+      
     } catch (err) {
-      console.error('Authentication error:', err);
+      console.error('Signup error:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleOTPVerification = async () => {
+    if (otpCode.length !== 6) {
+      alert('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await verifyOTPAndSignup(formData.email, otpCode, formData.password);
+      alert('Account created successfully! You can now login.');
+      setShowOTPVerification(false);
+      setIsSignup(false);
+      setFormData({
+        email: '',
+        password: '',
+        role: 'student',
+        name: '',
+        studentId: '',
+        course: '',
+        yearLevel: '',
+        semester: '',
+        departmentToken: ''
+      });
+      setOtpCode('');
+    } catch (err) {
+      console.error('OTP verification error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    try {
+      await resendOTP(formData.email);
+      setOtpTimer(60);
+    } catch (err) {
+      console.error('Resend OTP error:', err);
+    }
+  };
+
+  const handleLoginSubmit = async () => {
+    setLoading(true);
+    try {
+      await login(formData.email, formData.password);
+    } catch (err) {
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showOTPVerification) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="text-white" size={32} />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800">Verify Your Email</h1>
+            <p className="text-gray-600 mt-2">
+              We've sent a 6-digit code to<br />
+              <span className="font-semibold">{formData.email}</span>
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter OTP Code
+              </label>
+              <input
+                type="text"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"
+                placeholder="000000"
+                maxLength="6"
+              />
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Code expires in 10 minutes
+              </p>
+            </div>
+
+            <button
+              onClick={handleOTPVerification}
+              disabled={loading || otpCode.length !== 6}
+              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400"
+            >
+              {loading ? 'Verifying...' : 'Verify & Create Account'}
+            </button>
+
+            <div className="text-center">
+              {otpTimer > 0 ? (
+                <p className="text-sm text-gray-600">
+                  Resend code in {otpTimer} seconds
+                </p>
+              ) : (
+                <button
+                  onClick={handleResendOTP}
+                  className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                >
+                  Resend OTP
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowOTPVerification(false);
+                setOtpCode('');
+              }}
+              className="w-full text-gray-600 hover:text-gray-700 text-sm"
+            >
+              ← Back to signup
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -179,7 +319,6 @@ export default function Login() {
         )}
 
         <div className="space-y-6">
-          {/* Login/Signup Toggle */}
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
@@ -334,11 +473,11 @@ export default function Login() {
           )}
 
           <button
-            onClick={handleSubmit}
+            onClick={isSignup ? handleSignupSubmit : handleLoginSubmit}
             disabled={loading}
             className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400"
           >
-            {loading ? 'Please wait...' : (isSignup ? 'Sign Up' : 'Sign In')}
+            {loading ? 'Please wait...' : (isSignup ? 'Send OTP' : 'Sign In')}
           </button>
 
           <div className="text-center">

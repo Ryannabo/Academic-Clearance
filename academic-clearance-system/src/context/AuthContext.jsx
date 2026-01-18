@@ -1,4 +1,3 @@
-// src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
   signInWithEmailAndPassword,
@@ -6,8 +5,9 @@ import {
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
+import { generateOTP, sendOTPEmail } from '../utils/emailOTP';
 
 const AuthContext = createContext();
 
@@ -27,7 +27,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Fetch user data from Firestore
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           if (userDoc.exists()) {
@@ -69,51 +68,142 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (email, password, userData) => {
+  const sendOTPForSignup = async (email, userData) => {
+  try {
+    setError(null);
+    
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    
+    // Store OTP in Firestore first
+    await setDoc(doc(db, 'pending_verifications', email), {
+      otp,
+      email,
+      userData,
+      expiresAt: expiresAt.toISOString(),
+      createdAt: new Date().toISOString()
+    });
+    
+    // Try to send email
+    const emailSent = await sendOTPEmail(email, otp, userData.name);
+    
+    if (emailSent) {
+      alert(`✅ OTP sent to ${email}. Please check your inbox (and spam folder).`);
+    } else {
+      // Fallback: show OTP in alert for testing
+      console.log(`Development Mode - OTP: ${otp}`);
+      alert(`⚠️ Email service not configured.\n\nYour OTP is: ${otp}\n\n(Check console for details)`);
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Error in sendOTPForSignup:', err);
+    setError(err.message);
+    throw err;
+  }
+};
+
+  const verifyOTPAndSignup = async (email, otp, password) => {
     try {
       setError(null);
+      
+      const verificationDoc = await getDoc(doc(db, 'pending_verifications', email));
+      
+      if (!verificationDoc.exists()) {
+        throw new Error('No pending verification found. Please request a new OTP.');
+      }
+      
+      const verificationData = verificationDoc.data();
+      
+      if (new Date(verificationData.expiresAt) < new Date()) {
+        await deleteDoc(doc(db, 'pending_verifications', email));
+        throw new Error('OTP has expired. Please request a new one.');
+      }
+      
+      if (verificationData.otp !== otp) {
+        throw new Error('Invalid OTP. Please try again.');
+      }
+      
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Create user document in Firestore
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         email,
-        ...userData,
+        ...verificationData.userData,
+        emailVerified: true,
         createdAt: new Date().toISOString()
       });
 
-      // If student, create student document
-      if (userData.role === 'student') {
+      if (verificationData.userData.role === 'student') {
         await setDoc(doc(db, 'students', userCredential.user.uid), {
-          name: userData.name,
-          studentId: userData.studentId,
-          course: userData.course,
-          yearLevel: userData.yearLevel,
-          semester: userData.semester,
+          name: verificationData.userData.name,
+          studentId: verificationData.userData.studentId,
+          course: verificationData.userData.course,
+          yearLevel: verificationData.userData.yearLevel,
+          semester: verificationData.userData.semester,
           email: email,
           createdAt: new Date().toISOString()
         });
       }
       
-      // Mark token as used (only for department signups)
-      if (userData.tokenId) {
+      if (verificationData.userData.tokenId) {
         try {
-          await updateDoc(doc(db, 'department_tokens', userData.tokenId), {
+          await updateDoc(doc(db, 'department_tokens', verificationData.userData.tokenId), {
             used: true,
             usedAt: new Date().toISOString(),
             usedBy: email
           });
         } catch (tokenError) {
           console.error('Error marking token as used:', tokenError);
-          // Don't fail signup if token update fails
         }
       }
-
+      
+      await deleteDoc(doc(db, 'pending_verifications', email));
+      
       return userCredential.user;
     } catch (err) {
       setError(err.message);
       throw err;
     }
   };
+
+  const resendOTP = async (email) => {
+  try {
+    setError(null);
+    
+    const verificationDoc = await getDoc(doc(db, 'pending_verifications', email));
+    
+    if (!verificationDoc.exists()) {
+      throw new Error('No pending verification found. Please restart signup.');
+    }
+    
+    const verificationData = verificationDoc.data();
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
+    // Update OTP in Firestore
+    await updateDoc(doc(db, 'pending_verifications', email), {
+      otp,
+      expiresAt: expiresAt.toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    
+    // Try to send email
+    const emailSent = await sendOTPEmail(email, otp, verificationData.userData.name);
+    
+    if (emailSent) {
+      alert(`✅ New OTP sent to ${email}. Please check your inbox.`);
+    } else {
+      console.log(`Development Mode - New OTP: ${otp}`);
+      alert(`⚠️ Email service not configured.\n\nYour new OTP is: ${otp}`);
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Error in resendOTP:', err);
+    setError(err.message);
+    throw err;
+  }
+};
 
   const logout = async () => {
     try {
@@ -130,7 +220,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     login,
-    signup,
+    sendOTPForSignup,
+    verifyOTPAndSignup,
+    resendOTP,
     logout
   };
 
