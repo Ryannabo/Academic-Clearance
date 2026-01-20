@@ -1,11 +1,13 @@
-// src/components/StudentDashboard.jsx (Restructured Database)
+// src/components/StudentDashboard.jsx (Complete Fixed Version)
 import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  collection, 
-  query, 
-  getDocs, 
+import NotificationPanel from './NotificationPanel';
+import { createNotification } from '../utils/notifications';
+import {
+  collection,
+  query,
+  getDocs,
   setDoc,
   updateDoc,
   doc,
@@ -34,6 +36,7 @@ export default function StudentDashboard() {
   const [studentData, setStudentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState({});
+  const [previewFile, setPreviewFile] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -68,7 +71,7 @@ export default function StudentDashboard() {
     // Subscribe to each department's requirement for this student
     const unsubscribers = departments.map(dept => {
       const reqDocRef = doc(db, 'clearance_requirements', dept.id, 'students', user.uid);
-      
+
       return onSnapshot(reqDocRef, (docSnap) => {
         setRequirements(prev => ({
           ...prev,
@@ -84,17 +87,6 @@ export default function StudentDashboard() {
       unsubscribers.forEach(unsub => unsub());
     };
   }, [user]);
-
-  // Remove the automatic initialization - only create when uploading
-  // Delete or comment out this entire useEffect
-  /*
-  useEffect(() => {
-    const initializeRequirements = async () => {
-      // REMOVED - Don't auto-create for all departments
-    };
-    initializeRequirements();
-  }, [user, studentData, requirements]);
-  */
 
   const fileToBase64 = (file) => {
     return new Promise((resolve, reject) => {
@@ -132,19 +124,16 @@ export default function StudentDashboard() {
 
       const uploadedFiles = await Promise.all(uploadPromises);
 
-      // Reference to this department's document for this student
       const reqDocRef = doc(db, 'clearance_requirements', deptId, 'students', user.uid);
       const currentReq = requirements[deptId];
-      
+
       if (currentReq) {
-        // Document exists - update it
         await updateDoc(reqDocRef, {
           files: [...(currentReq.files || []), ...uploadedFiles],
           status: 'pending',
           updatedAt: new Date().toISOString()
         });
       } else {
-        // Document doesn't exist - create it with files
         await setDoc(reqDocRef, {
           studentId: user.uid,
           studentName: studentData?.name || user.name,
@@ -152,6 +141,7 @@ export default function StudentDashboard() {
           course: studentData?.course,
           yearLevel: studentData?.yearLevel,
           semester: studentData?.semester,
+          section: studentData?.section,
           email: user.email,
           status: 'pending',
           files: uploadedFiles,
@@ -161,6 +151,13 @@ export default function StudentDashboard() {
       }
 
       alert(`✅ Files uploaded successfully to ${departments.find(d => d.id === deptId)?.name}!`);
+      await createNotification(
+        user.uid,
+        'pending',
+        `Files Uploaded to ${departments.find(d => d.id === deptId)?.name}`,
+        `Your ${uploadedFiles.length} file(s) have been submitted and are pending review.`,
+        { department: deptId }
+      );
       event.target.value = '';
     } catch (error) {
       console.error('Error uploading files:', error);
@@ -170,15 +167,26 @@ export default function StudentDashboard() {
     }
   };
 
+  const downloadFile = (file) => {
+    const link = document.createElement('a');
+    link.href = file.data;
+    link.download = file.name;
+    link.click();
+  };
+
+  const previewFileHandler = (file) => {
+    setPreviewFile(file);
+  };
+
   const exportToPDF = () => {
     if (!studentData) return;
 
     const doc = new jsPDF();
-    
+
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.text('ACADEMIC CLEARANCE', 105, 20, { align: 'center' });
-    
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(`Student Name: ${studentData.name || user.name}`, 20, 40);
@@ -186,17 +194,17 @@ export default function StudentDashboard() {
     doc.text(`Course: ${studentData.course || 'N/A'}`, 20, 60);
     doc.text(`Year Level: ${studentData.yearLevel || 'N/A'}`, 20, 70);
     doc.text(`Semester: ${studentData.semester || 'N/A'}`, 20, 80);
-    
+
     const tableData = departments.map(dept => {
       const req = requirements[dept.id];
       return [
         dept.name,
-        req?.status?.toUpperCase() || 'PENDING',
+        req?.status?.toUpperCase() || 'NOT SUBMITTED',
         req?.files?.length || 0,
         req?.approvedAt ? new Date(req.approvedAt).toLocaleDateString() : 'N/A'
       ];
     });
-    
+
     doc.autoTable({
       startY: 95,
       head: [['Department', 'Status', 'Files', 'Date Approved']],
@@ -205,11 +213,11 @@ export default function StudentDashboard() {
       headStyles: { fillColor: [63, 81, 181] },
       styles: { fontSize: 10 }
     });
-    
+
     const finalY = doc.lastAutoTable.finalY || 95;
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, finalY + 20);
-    
+
     const allApproved = departments.every(d => requirements[d.id]?.status === 'approved');
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
@@ -220,7 +228,7 @@ export default function StudentDashboard() {
       doc.setTextColor(255, 140, 0);
       doc.text('STATUS: PENDING', 105, finalY + 35, { align: 'center' });
     }
-    
+
     doc.save(`Clearance_${studentData.studentId}_${Date.now()}.pdf`);
   };
 
@@ -278,7 +286,7 @@ export default function StudentDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">Clearance System</h1>
           <div className="flex items-center gap-4">
-            <Bell className="text-gray-600 cursor-pointer" />
+            <NotificationPanel />
             <div className="flex items-center gap-2">
               <User size={20} />
               <span className="font-medium">{user?.name}</span>
@@ -300,7 +308,7 @@ export default function StudentDashboard() {
               <h2 className="text-2xl font-bold text-gray-800">Welcome, {user?.name}</h2>
               <p className="text-gray-600">Student ID: {studentData?.studentId || 'N/A'}</p>
               <p className="text-sm text-gray-500">
-                {studentData?.course} - {studentData?.yearLevel} - {studentData?.semester}
+                {studentData?.course} - {studentData?.yearLevel} - {studentData?.semester} - Section {studentData?.section}
               </p>
               <div className="mt-3">
                 <div className="flex items-center gap-2 mb-2">
@@ -313,8 +321,8 @@ export default function StudentDashboard() {
                   </span>
                 </div>
                 <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-600 transition-all" 
+                  <div
+                    className="h-full bg-indigo-600 transition-all"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
@@ -333,154 +341,83 @@ export default function StudentDashboard() {
         <div className="flex gap-4 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'overview' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'overview' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             Overview
           </button>
           <button
-            onClick={() => setActiveTab('all-requirements')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'all-requirements' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
-          >
-            <FileText size={18} className="inline mr-1" />
-            All Requirements
-          </button>
-          <button
             onClick={() => setActiveTab('upload')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             Upload Files
           </button>
         </div>
 
+        {/* OVERVIEW TAB - Only Summary */}
         {activeTab === 'overview' && (
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-bold mb-4">Clearance Status by Department</h3>
-            
-            {/* Show message if no submissions yet */}
-            {Object.keys(requirements).filter(k => requirements[k]).length === 0 && (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <FileText className="mx-auto mb-4 text-gray-400" size={48} />
-                <p className="text-gray-600 mb-2">No submissions yet</p>
-                <p className="text-sm text-gray-500">Go to "Upload Files" tab to submit your requirements</p>
-              </div>
-            )}
-            
-            <div className="space-y-3">
-              {departments.map(dept => {
-                const req = requirements[dept.id];
-                // Only show departments where student has submitted
-                if (!req) return null;
-                
-                return (
-                  <div key={dept.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{dept.icon}</span>
-                        <div>
-                          <p className="font-semibold">{dept.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {req.files?.length || 0} file{(req.files?.length || 0) !== 1 ? 's' : ''} uploaded
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`flex items-center gap-1 font-medium ${getStatusColor(req.status)}`}>
-                          {getStatusIcon(req.status)}
-                          {getStatusText(req.status)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {req.status === 'rejected' && req.rejectionReason && (
-                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                          <div>
-                            <p className="text-sm font-medium text-red-800">Rejection Reason:</p>
-                            <p className="text-sm text-red-700 mt-1">{req.rejectionReason}</p>
-                            {req.missingRequirements && (
-                              <p className="text-sm text-red-700 mt-1">
-                                <strong>Missing:</strong> {req.missingRequirements}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+            <h3 className="text-xl font-bold mb-4">Clearance Status Summary</h3>
 
-        {activeTab === 'all-requirements' && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-bold mb-4">Department Requirements</h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Below are all the requirements you need to submit for each department to get your clearance approved.
-            </p>
-            
-            <div className="space-y-6">
-              {departments.map(dept => {
-                const deptRequirements = requirementTemplates[dept.id] || [];
-                const req = requirements[dept.id];
-                
-                return (
-                  <div key={dept.id} className="border rounded-lg p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-3xl">{dept.icon}</span>
-                        <div>
-                          <h4 className="font-bold text-lg">{dept.name}</h4>
-                          <span className={`text-sm ${getStatusColor(req?.status)}`}>
-                            {getStatusText(req?.status)}
-                          </span>
-                        </div>
+            {departments.map(dept => {
+              const req = requirements[dept.id];
+              const hasSubmission = req !== null;
+              const status = req?.status || 'not_submitted';
+              const filesCount = req?.files?.length || 0;
+
+              return (
+                <div key={dept.id} className="border rounded-lg p-4 mb-3 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <span className="text-2xl">{dept.icon}</span>
+                      <div className="flex-1">
+                        <p className="font-semibold">{dept.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {!hasSubmission ? 'No submission yet' : `${filesCount} file${filesCount !== 1 ? 's' : ''} uploaded`}
+                        </p>
                       </div>
                     </div>
 
-                    {deptRequirements.length === 0 ? (
-                      <p className="text-sm text-gray-500 italic bg-gray-50 p-4 rounded">
-                        No specific requirements set for this department yet.
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {deptRequirements.map((template, idx) => (
-                          <div key={template.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <div className="flex items-start gap-2">
-                              <span className="font-bold text-blue-900">{idx + 1}.</span>
-                              <div className="flex-1">
-                                <p className="font-semibold text-blue-900">
-                                  {template.title}
-                                  {template.required && (
-                                    <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                                      Required
-                                    </span>
-                                  )}
-                                </p>
-                                {template.description && (
-                                  <p className="text-sm text-blue-800 mt-1">{template.description}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-4">
+                      {/* Status Badge */}
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${status === 'approved' ? 'bg-green-100 text-green-800' :
+                          status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            hasSubmission ? 'bg-amber-100 text-amber-800' :
+                              'bg-gray-100 text-gray-800'
+                        }`}>
+                        {status === 'approved' ? '✓ Approved' :
+                          status === 'rejected' ? '✗ Rejected' :
+                            hasSubmission ? '⏳ Pending' :
+                              '○ Not Submitted'}
+                      </span>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Show rejection reason if rejected */}
+                  {status === 'rejected' && req.rejectionReason && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                        <div>
+                          <p className="text-sm font-medium text-red-800">Rejection Reason:</p>
+                          <p className="text-sm text-red-700 mt-1">{req.rejectionReason}</p>
+                          {req.missingRequirements && (
+                            <p className="text-sm text-red-700 mt-1">
+                              <strong>Missing:</strong> {req.missingRequirements}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
+        {/* UPLOAD TAB - With File Upload Functionality */}
         {activeTab === 'upload' && (
           <div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -488,12 +425,13 @@ export default function StudentDashboard() {
                 📌 <strong>Upload files to each department separately.</strong> You can upload to one department now and others later. Each upload goes ONLY to the selected department.
               </p>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {departments.map(dept => {
                 const req = requirements[dept.id];
                 const isUploading = uploading[dept.id];
-                
+                const isApproved = req?.status === 'approved';
+
                 return (
                   <div key={dept.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3 mb-4">
@@ -505,42 +443,78 @@ export default function StudentDashboard() {
                     </div>
 
                     <div className="space-y-3">
-                      <label className="block">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors">
-                          <Upload className="mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm text-gray-600">
-                            {isUploading ? 'Uploading...' : 'Click to upload files'}
+                      {/* NEW: Show lock message if approved */}
+                      {isApproved ? (
+                        <div className="border-2 border-green-300 bg-green-50 rounded-lg p-6 text-center">
+                          <CheckCircle className="mx-auto mb-2 text-green-600" size={40} />
+                          <p className="font-semibold text-green-800 mb-1">Clearance Approved! ✓</p>
+                          <p className="text-sm text-green-700">
+                            File uploads are locked for this department.
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (max 1MB each)</p>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(dept.id, e)}
-                            disabled={isUploading}
-                          />
+                          <p className="text-xs text-green-600 mt-2">
+                            Contact the department if you need to make changes.
+                          </p>
                         </div>
-                      </label>
+                      ) : (
+                        <label className="block">
+                          <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isUploading
+                              ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                              : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
+                            }`}>
+                            <Upload className="mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm text-gray-600">
+                              {isUploading ? 'Uploading...' : 'Click to upload files'}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (max 1MB each)</p>
+                            <input
+                              type="file"
+                              multiple
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              className="hidden"
+                              onChange={(e) => handleFileUpload(dept.id, e)}
+                              disabled={isUploading}
+                            />
+                          </div>
+                        </label>
+                      )}
+
+                      {/* Show uploaded files with preview option */}
                       {req?.files && req.files.length > 0 && (
-                        <div className={`p-3 rounded-lg ${
-                          req.status === 'approved' ? 'bg-green-50 border border-green-200' :
-                          req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
-                          'bg-amber-50 border border-amber-200'
-                        }`}>
-                          <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${
-                            req.status === 'approved' ? 'text-green-700' :
-                            req.status === 'rejected' ? 'text-red-700' :
-                            'text-amber-700'
+                        <div className={`p-3 rounded-lg ${req.status === 'approved' ? 'bg-green-50 border border-green-200' :
+                            req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
+                              'bg-amber-50 border border-amber-200'
                           }`}>
+                          <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${req.status === 'approved' ? 'text-green-700' :
+                              req.status === 'rejected' ? 'text-red-700' :
+                                'text-amber-700'
+                            }`}>
                             {getStatusIcon(req.status)}
                             <span className="ml-1">{getStatusText(req.status)}</span>
                           </p>
-                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
                             {req.files.map((file, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-xs">
-                                <p className="text-gray-600 truncate flex-1">{file.name}</p>
-                                <span className="text-gray-400 ml-2">{(file.size / 1024).toFixed(1)}KB</span>
+                              <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border">
+                                <div className="flex items-center gap-2 flex-1">
+                                  <FileText size={16} className="text-gray-500 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{file.name}</p>
+                                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)}KB</p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2 ml-2">
+                                  <button
+                                    onClick={() => previewFileHandler(file)}
+                                    className="text-indigo-600 hover:text-indigo-800 text-xs px-2 py-1 border border-indigo-300 rounded"
+                                  >
+                                    Preview
+                                  </button>
+                                  <button
+                                    onClick={() => downloadFile(file)}
+                                    className="text-green-600 hover:text-green-800"
+                                  >
+                                    <Download size={16} />
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -554,6 +528,50 @@ export default function StudentDashboard() {
           </div>
         )}
       </div>
+
+      {/* File Preview Modal */}
+      {previewFile && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">{previewFile.name}</h3>
+              <button
+                onClick={() => setPreviewFile(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <XCircle size={24} />
+              </button>
+            </div>
+
+            <div className="flex justify-center">
+              {previewFile.type.startsWith('image/') ? (
+                <img
+                  src={previewFile.data}
+                  alt={previewFile.name}
+                  className="max-w-full h-auto rounded-lg"
+                />
+              ) : previewFile.type === 'application/pdf' ? (
+                <iframe
+                  src={previewFile.data}
+                  className="w-full h-[70vh] border rounded-lg"
+                  title={previewFile.name}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <FileText size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600">Preview not available for this file type</p>
+                  <button
+                    onClick={() => downloadFile(previewFile)}
+                    className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
+                  >
+                    Download File
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

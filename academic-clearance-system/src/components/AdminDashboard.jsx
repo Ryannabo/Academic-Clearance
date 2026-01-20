@@ -56,6 +56,39 @@ export default function AdminDashboard() {
     required: true
   });
 
+  // NEW: Clear all Student IDs function
+  const clearAllStudentIds = async () => {
+    if (!window.confirm('⚠️ WARNING: This will delete ALL Student ID registrations.\n\nAre you absolutely sure?')) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Clearing student_ids collection...');
+      
+      const studentIdsSnapshot = await getDocs(collection(db, 'student_ids'));
+      
+      console.log(`Found ${studentIdsSnapshot.size} Student IDs to delete`);
+      
+      if (studentIdsSnapshot.size === 0) {
+        alert('✅ No Student IDs found. Collection is already empty.');
+        return;
+      }
+
+      const deletePromises = studentIdsSnapshot.docs.map(docSnap => 
+        deleteDoc(doc(db, 'student_ids', docSnap.id))
+      );
+      
+      await Promise.all(deletePromises);
+      
+      console.log('✅ All Student IDs cleared!');
+      alert(`✅ Successfully deleted ${studentIdsSnapshot.size} Student ID registrations.\n\nUsers can now sign up with any Student ID.`);
+      
+    } catch (error) {
+      console.error('❌ Error clearing Student IDs:', error);
+      alert('❌ Error: ' + error.message);
+    }
+  };
+
   useEffect(() => {
     // Fetch statistics
     const fetchStats = async () => {
@@ -304,6 +337,26 @@ export default function AdminDashboard() {
             <Activity size={18} className="inline mr-2" />
             Overview
           </button>
+          {/* NEW: Cleanup Section */}
+            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-red-600 flex-shrink-0 mt-1" size={24} />
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg text-red-800 mb-2">🔧 System Maintenance</h3>
+                  <p className="text-sm text-red-700 mb-3">
+                    If you cleared the students collection and users can't sign up because "Student ID already used", 
+                    click this button to clear the Student ID registry.
+                  </p>
+                  <button
+                    onClick={clearAllStudentIds}
+                    className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold flex items-center gap-2"
+                  >
+                    <Trash2 size={18} />
+                    Clear All Student IDs
+                  </button>
+                </div>
+              </div>
+            </div>
           <button
             onClick={() => setActiveTab('tokens')}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${

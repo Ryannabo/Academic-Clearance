@@ -1,8 +1,8 @@
-// src/components/Login.jsx (Fixed - No Duplicate useEffect)
+// src/components/Login.jsx (Updated with Section & Unique Student ID Validation)
 import React, { useState, useEffect } from 'react';
-import { FileText, Shield, Mail } from 'lucide-react';
+import { FileText, Shield, Mail, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const departments = [
@@ -38,6 +38,9 @@ const courses = [
   'BA Political Science'
 ];
 
+// Section options - can be adjusted based on availability
+const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
 export default function Login() {
   const { login, sendOTPForSignup, verifyOTPAndSignup, resendOTP, error } = useAuth();
   const [isSignup, setIsSignup] = useState(false);
@@ -51,11 +54,13 @@ export default function Login() {
     course: '',
     yearLevel: '',
     semester: '',
+    section: '',
     departmentToken: ''
   });
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [tokenError, setTokenError] = useState('');
+  const [studentIdError, setStudentIdError] = useState('');
   const [otpTimer, setOtpTimer] = useState(0);
 
   // Timer for resend OTP
@@ -67,14 +72,68 @@ export default function Login() {
   }, [otpTimer]);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    if (e.target.name === 'departmentToken') {
+    const { name, value } = e.target;
+    
+    // Format Student ID as user types
+    if (name === 'studentId') {
+      // Remove any non-digit characters except hyphen
+      let formatted = value.replace(/[^\d-]/g, '');
+      
+      // Format as YYYY-NNNNNN
+      if (formatted.length <= 4) {
+        // Just the year part
+        formatted = formatted;
+      } else if (formatted.length === 5 && !formatted.includes('-')) {
+        // Add hyphen after year
+        formatted = formatted.slice(0, 4) + '-' + formatted.slice(4);
+      } else if (formatted.includes('-')) {
+        // Already has hyphen, limit the number part to 6 digits
+        const parts = formatted.split('-');
+        if (parts[1] && parts[1].length > 6) {
+          parts[1] = parts[1].slice(0, 6);
+        }
+        formatted = parts.join('-');
+      }
+      
+      setFormData({
+        ...formData,
+        [name]: formatted
+      });
+      setStudentIdError('');
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+    }
+    
+    if (name === 'departmentToken') {
       setTokenError('');
     }
   };
+
+  // Validate Student ID format
+  const validateStudentIdFormat = (studentId) => {
+    // Format: YYYY-NNNNNN (year-number, where number is 1-6 digits)
+    const regex = /^\d{4}-\d{1,6}$/;
+    return regex.test(studentId);
+  };
+
+  const checkStudentIdExists = async (studentId) => {
+  try {
+    // Check the student_ids registry collection (not students collection)
+    const idDoc = await getDoc(doc(db, 'student_ids', studentId));
+    
+    console.log(`Checking Student ID: ${studentId}`);
+    console.log(`Exists in registry: ${idDoc.exists()}`);
+    
+    return idDoc.exists(); // Returns true if exists
+  } catch (error) {
+    console.error('Error checking student ID:', error);
+    // If there's an error, assume it doesn't exist to allow signup
+    return false;
+  }
+};
 
   const verifyToken = async (token, department) => {
     try {
@@ -112,6 +171,7 @@ export default function Login() {
   const handleSignupSubmit = async () => {
     setLoading(true);
     setTokenError('');
+    setStudentIdError('');
 
     try {
       let tokenId = null;
@@ -131,8 +191,24 @@ export default function Login() {
 
       // Validate student information
       if (formData.role === 'student') {
-        if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester) {
-          alert('Please fill in all student information');
+        // Check all required fields
+        if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester || !formData.section) {
+          alert('Please fill in all student information including section');
+          setLoading(false);
+          return;
+        }
+
+        // Validate Student ID format
+        if (!validateStudentIdFormat(formData.studentId)) {
+          setStudentIdError('Invalid Student ID format. Use: YYYY-NNNNNN (e.g., 2022-01132)');
+          setLoading(false);
+          return;
+        }
+
+        // Check if Student ID already exists
+        const idExists = await checkStudentIdExists(formData.studentId);
+        if (idExists) {
+          setStudentIdError('This Student ID is already registered. Please contact the administrator if this is an error.');
           setLoading(false);
           return;
         }
@@ -148,6 +224,7 @@ export default function Login() {
         userData.course = formData.course;
         userData.yearLevel = formData.yearLevel;
         userData.semester = formData.semester;
+        userData.section = formData.section;
       } else {
         userData.department = formData.role;
         userData.tokenId = tokenId;
@@ -186,6 +263,7 @@ export default function Login() {
         course: '',
         yearLevel: '',
         semester: '',
+        section: '',
         departmentToken: ''
       });
       setOtpCode('');
@@ -318,6 +396,13 @@ export default function Login() {
           </div>
         )}
 
+        {studentIdError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-red-600">{studentIdError}</p>
+          </div>
+        )}
+
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4">
             <div>
@@ -383,16 +468,24 @@ export default function Login() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Student ID <span className="text-red-600">*</span>
+                      </label>
                       <input
                         type="text"
                         name="studentId"
                         value={formData.studentId}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        placeholder="e.g., 2024-00001"
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                          studentIdError ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="2022-01132"
+                        maxLength="11"
                         required
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Format: YYYY-NNNNNN (e.g., 2022-01132)
+                      </p>
                     </div>
 
                     <div>
@@ -412,7 +505,7 @@ export default function Login() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
                       <select
@@ -422,7 +515,7 @@ export default function Login() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         required
                       >
-                        <option value="">Select Year Level</option>
+                        <option value="">Select Year</option>
                         <option value="1st Year">1st Year</option>
                         <option value="2nd Year">2nd Year</option>
                         <option value="3rd Year">3rd Year</option>
@@ -444,6 +537,24 @@ export default function Login() {
                         <option value="1st Semester">1st Semester</option>
                         <option value="2nd Semester">2nd Semester</option>
                         <option value="Summer">Summer</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Section <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        name="section"
+                        value={formData.section}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">Select Section</option>
+                        {sections.map(section => (
+                          <option key={section} value={section}>{section}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -486,6 +597,7 @@ export default function Login() {
               onClick={() => {
                 setIsSignup(!isSignup);
                 setTokenError('');
+                setStudentIdError('');
               }}
               className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
             >

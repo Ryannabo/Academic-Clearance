@@ -1,10 +1,12 @@
-// src/components/DepartmentDashboard.jsx (Restructured Database)
+// src/components/DepartmentDashboard.jsx (Updated - Default to Pending)
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, User, Bell, Eye, X, FileText, Download, Search, Filter, Calendar } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  collection, 
-  query, 
+import NotificationPanel from './NotificationPanel';
+import { notifyStudentStatusChange } from '../utils/notifications';
+import {
+  collection,
+  query,
   onSnapshot,
   updateDoc,
   doc,
@@ -30,10 +32,10 @@ export default function DepartmentDashboard() {
   const [previewFile, setPreviewFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
-  
-  // Search & Filter states
+
+  // Search & Filter states - DEFAULT TO PENDING
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('pending'); // CHANGED: Default to 'pending'
   const [filterCourse, setFilterCourse] = useState('all');
   const [filterYearLevel, setFilterYearLevel] = useState('all');
   const [filterSemester, setFilterSemester] = useState('all');
@@ -61,7 +63,7 @@ export default function DepartmentDashboard() {
 
     // Subscribe to THIS department's students subcollection only
     const studentsCollectionRef = collection(db, 'clearance_requirements', departmentId, 'students');
-    
+
     const unsubscribe = onSnapshot(studentsCollectionRef, (snapshot) => {
       const reqs = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -69,7 +71,6 @@ export default function DepartmentDashboard() {
       }));
 
       setRequirements(reqs);
-      setFilteredRequirements(reqs);
 
       const newStats = {
         total: reqs.length,
@@ -83,7 +84,7 @@ export default function DepartmentDashboard() {
       const courses = new Set();
       const yearLevels = new Set();
       const semesters = new Set();
-      
+
       reqs.forEach(req => {
         if (req.course) courses.add(req.course);
         if (req.yearLevel) yearLevels.add(req.yearLevel);
@@ -161,6 +162,10 @@ export default function DepartmentDashboard() {
         rejectionReason: null,
         missingRequirements: null
       });
+
+      // NEW: Send notification
+      await notifyStudentStatusChange(studentId, departmentId, 'approved');
+
       alert('Student clearance approved successfully!');
       setSelectedStudent(null);
     } catch (error) {
@@ -184,6 +189,13 @@ export default function DepartmentDashboard() {
         rejectedBy: user.uid,
         rejectedAt: new Date().toISOString()
       });
+
+      // NEW: Send notification with reason
+      const fullReason = missing
+        ? `${reason}. Missing: ${missing}`
+        : reason;
+      await notifyStudentStatusChange(studentId, departmentId, 'rejected', fullReason);
+
       alert('Clearance rejected. Student will be notified.');
       setSelectedStudent(null);
     } catch (error) {
@@ -233,7 +245,7 @@ export default function DepartmentDashboard() {
             <p className="text-sm text-gray-600">Clearance Management</p>
           </div>
           <div className="flex items-center gap-4">
-            <Bell className="text-gray-600 cursor-pointer" />
+            <NotificationPanel />
             <User size={20} />
             <button
               onClick={logout}
@@ -287,10 +299,10 @@ export default function DepartmentDashboard() {
 
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-2xl font-bold mb-6">Student Clearance Requests</h2>
-          
+
           {/* Search and Filter Section */}
           <div className="space-y-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -354,9 +366,8 @@ export default function DepartmentDashboard() {
                   ))}
                 </select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* SINGLE DATE FILTER - Submission Date */}
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -364,36 +375,27 @@ export default function DepartmentDashboard() {
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="From date"
-                />
-              </div>
-
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="To date"
+                  placeholder="Submission date"
                 />
               </div>
             </div>
 
-            {(searchTerm || filterStatus !== 'all' || filterCourse !== 'all' || filterYearLevel !== 'all' || filterSemester !== 'all' || dateFrom || dateTo) && (
+            {(searchTerm || filterStatus !== 'all' || filterCourse !== 'all' || filterYearLevel !== 'all' || filterSemester !== 'all' || dateFrom) && (
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   Showing {filteredRequirements.length} of {requirements.length} results
+                  {filterStatus === 'pending' && filteredRequirements.length > 0 && (
+                    <span className="ml-2 text-amber-600 font-semibold">• Pending Review</span>
+                  )}
                 </p>
                 <button
                   onClick={() => {
                     setSearchTerm('');
-                    setFilterStatus('all');
+                    setFilterStatus('pending');
                     setFilterCourse('all');
                     setFilterYearLevel('all');
                     setFilterSemester('all');
                     setDateFrom('');
-                    setDateTo('');
                   }}
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
@@ -406,9 +408,11 @@ export default function DepartmentDashboard() {
           {filteredRequirements.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">
-                {requirements.length === 0 
-                  ? 'No clearance requests yet' 
-                  : 'No results found matching your filters'}
+                {requirements.length === 0
+                  ? 'No clearance requests yet'
+                  : filterStatus === 'pending'
+                    ? 'No pending requests at the moment'
+                    : 'No results found matching your filters'}
               </p>
             </div>
           ) : (
@@ -443,13 +447,12 @@ export default function DepartmentDashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">{req.files?.length || 0}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          req.status === 'approved' 
-                            ? 'bg-green-100 text-green-800' 
-                            : req.status === 'rejected'
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${req.status === 'approved'
+                          ? 'bg-green-100 text-green-800'
+                          : req.status === 'rejected'
                             ? 'bg-red-100 text-red-800'
                             : 'bg-amber-100 text-amber-800'
-                        }`}>
+                          }`}>
                           {req.status || 'pending'}
                         </span>
                       </td>
@@ -469,7 +472,7 @@ export default function DepartmentDashboard() {
           )}
         </div>
 
-        {/* Student Details Modal (same as before, just using req.id as studentId) */}
+        {/* Student Details Modal - Keep existing code */}
         {selectedStudent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6">
@@ -478,8 +481,8 @@ export default function DepartmentDashboard() {
                   <h3 className="text-2xl font-bold">{selectedStudent.studentName || 'Student'}</h3>
                   <p className="text-gray-600">{selectedStudent.studentIdNumber || 'N/A'}</p>
                 </div>
-                <button 
-                  onClick={() => setSelectedStudent(null)} 
+                <button
+                  onClick={() => setSelectedStudent(null)}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <X size={24} />
@@ -501,6 +504,10 @@ export default function DepartmentDashboard() {
                     <p className="font-medium">{selectedStudent.semester || 'N/A'}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-600">Section</p>
+                    <p className="font-medium">{selectedStudent.section || 'N/A'}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-600">Email</p>
                     <p className="font-medium text-sm">{selectedStudent.email || 'N/A'}</p>
                   </div>
@@ -510,42 +517,44 @@ export default function DepartmentDashboard() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-600">Status</p>
-                    <p className={`font-medium ${
-                      selectedStudent.status === 'approved' ? 'text-green-600' : 
+                    <p className={`font-medium ${selectedStudent.status === 'approved' ? 'text-green-600' :
                       selectedStudent.status === 'rejected' ? 'text-red-600' : 'text-amber-600'
-                    }`}>
+                      }`}>
                       {selectedStudent.status?.toUpperCase() || 'PENDING'}
                     </p>
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600 mb-3">Uploaded Files ({selectedStudent.files?.length || 0})</p>
+                  <p className="text-sm text-gray-600 mb-3 font-semibold">
+                    Uploaded Files ({selectedStudent.files?.length || 0})
+                  </p>
                   {selectedStudent.files && selectedStudent.files.length > 0 ? (
                     <div className="space-y-2">
                       {selectedStudent.files.map((file, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
                           <div className="flex items-center gap-2 flex-1">
-                            <FileText size={16} className="text-gray-500" />
-                            <div className="flex-1">
-                              <span className="text-sm font-medium block">{file.name}</span>
+                            <FileText size={20} className="text-gray-500 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium block truncate">{file.name}</span>
                               <span className="text-xs text-gray-500">
                                 {file.type} • {(file.size / 1024).toFixed(1)}KB
                               </span>
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 ml-2">
                             <button
                               onClick={() => previewFileHandler(file)}
-                              className="text-indigo-600 hover:text-indigo-700 text-sm px-3 py-1 border border-indigo-600 rounded"
+                              className="text-indigo-600 hover:text-indigo-700 text-sm px-3 py-1 border border-indigo-600 rounded hover:bg-indigo-50 transition-colors"
                             >
-                              Preview
+                              👁️ Preview
                             </button>
                             <button
                               onClick={() => downloadFile(file)}
-                              className="text-green-600 hover:text-green-700 text-sm"
+                              className="text-green-600 hover:text-green-700 p-1"
+                              title="Download"
                             >
-                              <Download size={18} />
+                              <Download size={20} />
                             </button>
                           </div>
                         </div>
@@ -576,15 +585,15 @@ export default function DepartmentDashboard() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => approveStudent(selectedStudent.id)}
-                    className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700"
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                   >
-                    Approve Clearance
+                    ✓ Approve Clearance
                   </button>
                   <button
                     onClick={() => rejectStudent(selectedStudent.id)}
-                    className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700"
+                    className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
                   >
-                    Reject
+                    ✗ Reject
                   </button>
                 </div>
               )}
@@ -598,6 +607,16 @@ export default function DepartmentDashboard() {
                   </p>
                 </div>
               )}
+
+              {selectedStudent.status === 'rejected' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                  <AlertCircle className="mx-auto mb-2 text-amber-600" size={32} />
+                  <p className="text-amber-800 font-medium">Currently Rejected</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Student can resubmit with correct requirements
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -608,20 +627,20 @@ export default function DepartmentDashboard() {
             <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">{previewFile.name}</h3>
-                <button 
-                  onClick={() => setPreviewFile(null)} 
+                <button
+                  onClick={() => setPreviewFile(null)}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <X size={24} />
                 </button>
               </div>
-              
+
               <div className="flex justify-center">
                 {previewFile.type.startsWith('image/') ? (
-                  <img 
-                    src={previewFile.data} 
+                  <img
+                    src={previewFile.data}
                     alt={previewFile.name}
-                    className="max-w-full h-auto rounded-lg"
+                    className="max-w-full h-auto rounded-lg shadow-lg"
                   />
                 ) : previewFile.type === 'application/pdf' ? (
                   <iframe
@@ -632,17 +651,42 @@ export default function DepartmentDashboard() {
                 ) : (
                   <div className="text-center py-12">
                     <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-                    <p className="text-gray-600">Preview not available for this file type</p>
+                    <p className="text-gray-600 mb-2">Preview not available for this file type</p>
+                    <p className="text-sm text-gray-500 mb-4">{previewFile.type}</p>
                     <button
                       onClick={() => downloadFile(previewFile)}
-                      className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
+                      className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 inline-flex items-center gap-2"
                     >
+                      <Download size={18} />
                       Download File
                     </button>
                   </div>
                 )}
               </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => downloadFile(previewFile)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 inline-flex items-center gap-2"
+                >
+                  <Download size={18} />
+                  Download
+                </button>
+                <button
+                  onClick={() => setPreviewFile(null)}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                >
+                  Close
+                </button>
+              </div>
             </div>
+          </div>
+        )}
+
+        {/* File Preview Modal - Keep existing code */}
+        {previewFile && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            {/* Keep your existing preview modal code here */}
           </div>
         )}
       </div>
