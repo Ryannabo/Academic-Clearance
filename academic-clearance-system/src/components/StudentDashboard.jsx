@@ -1,9 +1,10 @@
-// src/components/StudentDashboard.jsx (Complete Fixed Version)
+// src/components/StudentDashboard.jsx (Fixed - No Duplicates + Department Notifications)
 import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationPanel from './NotificationPanel';
-import { createNotification } from '../utils/notifications';
+import { createNotification, notifyDepartmentNewSubmission } from '../utils/notifications';
+import ProfileView from './profileView';
 import {
   collection,
   query,
@@ -37,6 +38,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -101,16 +103,18 @@ export default function StudentDashboard() {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
-    const maxSize = 1 * 1024 * 1024;
+    const maxSize = 1 * 1024 * 1024; // 1MB
     const oversizedFiles = files.filter(f => f.size > maxSize);
     if (oversizedFiles.length > 0) {
-      alert(`Some files are too large. Maximum size is 1MB per file.\nOversized files: ${oversizedFiles.map(f => f.name).join(', ')}`);
+      alert(`Some files are too large. Maximum size is 1MB per file.\n\nOversized files:\n${oversizedFiles.map(f => `• ${f.name} (${(f.size / 1024 / 1024).toFixed(2)}MB)`).join('\n')}`);
       return;
     }
 
     setUploading(prev => ({ ...prev, [deptId]: true }));
 
     try {
+      console.log(`📤 Uploading ${files.length} file(s) to ${deptId}...`);
+
       const uploadPromises = files.map(async (file) => {
         const base64 = await fileToBase64(file);
         return {
@@ -128,12 +132,14 @@ export default function StudentDashboard() {
       const currentReq = requirements[deptId];
 
       if (currentReq) {
+        // Update existing submission
         await updateDoc(reqDocRef, {
           files: [...(currentReq.files || []), ...uploadedFiles],
           status: 'pending',
           updatedAt: new Date().toISOString()
         });
       } else {
+        // Create new submission
         await setDoc(reqDocRef, {
           studentId: user.uid,
           studentName: studentData?.name || user.name,
@@ -150,18 +156,33 @@ export default function StudentDashboard() {
         });
       }
 
-      alert(`✅ Files uploaded successfully to ${departments.find(d => d.id === deptId)?.name}!`);
+      const deptName = departments.find(d => d.id === deptId)?.name || deptId;
+
+      // 🔔 CREATE NOTIFICATION FOR STUDENT (confirmation)
+      console.log('📧 Creating upload confirmation for student:', user.uid);
       await createNotification(
         user.uid,
         'pending',
-        `Files Uploaded to ${departments.find(d => d.id === deptId)?.name}`,
+        `Files Uploaded to ${deptName}`,
         `Your ${uploadedFiles.length} file(s) have been submitted and are pending review.`,
-        { department: deptId }
+        { department: deptId, fileCount: uploadedFiles.length }
       );
+
+      // 🔔 NOTIFY DEPARTMENT USERS (NEW!)
+      console.log('📧 Notifying department users about new submission...');
+      await notifyDepartmentNewSubmission(
+        deptId,
+        studentData?.name || user.name,
+        studentData?.studentId || 'N/A',
+        uploadedFiles.length
+      );
+
+      alert(`✅ Files uploaded successfully to ${deptName}!\n\nThe department has been notified.`);
       event.target.value = '';
+
     } catch (error) {
-      console.error('Error uploading files:', error);
-      alert('❌ Failed to upload files. Please try again.');
+      console.error('❌ Error uploading files:', error);
+      alert('❌ Failed to upload files. Please try again.\n\nError: ' + error.message);
     } finally {
       setUploading(prev => ({ ...prev, [deptId]: false }));
     }
@@ -288,8 +309,14 @@ export default function StudentDashboard() {
           <div className="flex items-center gap-4">
             <NotificationPanel />
             <div className="flex items-center gap-2">
-              <User size={20} />
-              <span className="font-medium">{user?.name}</span>
+              <button
+                onClick={() => setShowProfile(true)}
+                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg"
+              >
+                <User size={20} />
+                <span className="font-medium">{user?.name}</span>
+              </button>
+              <ProfileView isOpen={showProfile} onClose={() => setShowProfile(false)} />       
             </div>
             <button
               onClick={logout}
@@ -382,9 +409,9 @@ export default function StudentDashboard() {
                     <div className="flex items-center gap-4">
                       {/* Status Badge */}
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${status === 'approved' ? 'bg-green-100 text-green-800' :
-                          status === 'rejected' ? 'bg-red-100 text-red-800' :
-                            hasSubmission ? 'bg-amber-100 text-amber-800' :
-                              'bg-gray-100 text-gray-800'
+                        status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          hasSubmission ? 'bg-amber-100 text-amber-800' :
+                            'bg-gray-100 text-gray-800'
                         }`}>
                         {status === 'approved' ? '✓ Approved' :
                           status === 'rejected' ? '✗ Rejected' :
@@ -443,7 +470,7 @@ export default function StudentDashboard() {
                     </div>
 
                     <div className="space-y-3">
-                      {/* NEW: Show lock message if approved */}
+                      {/* Show lock message if approved */}
                       {isApproved ? (
                         <div className="border-2 border-green-300 bg-green-50 rounded-lg p-6 text-center">
                           <CheckCircle className="mx-auto mb-2 text-green-600" size={40} />
@@ -458,8 +485,8 @@ export default function StudentDashboard() {
                       ) : (
                         <label className="block">
                           <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isUploading
-                              ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
-                              : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
+                            ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                            : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
                             }`}>
                             <Upload className="mx-auto mb-2 text-gray-400" />
                             <p className="text-sm text-gray-600">
@@ -481,12 +508,12 @@ export default function StudentDashboard() {
                       {/* Show uploaded files with preview option */}
                       {req?.files && req.files.length > 0 && (
                         <div className={`p-3 rounded-lg ${req.status === 'approved' ? 'bg-green-50 border border-green-200' :
-                            req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
-                              'bg-amber-50 border border-amber-200'
+                          req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
+                            'bg-amber-50 border border-amber-200'
                           }`}>
                           <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${req.status === 'approved' ? 'text-green-700' :
-                              req.status === 'rejected' ? 'text-red-700' :
-                                'text-amber-700'
+                            req.status === 'rejected' ? 'text-red-700' :
+                              'text-amber-700'
                             }`}>
                             {getStatusIcon(req.status)}
                             <span className="ml-1">{getStatusText(req.status)}</span>

@@ -163,7 +163,8 @@ export default function DepartmentDashboard() {
         missingRequirements: null
       });
 
-      // NEW: Send notification
+      // 🔔 SEND NOTIFICATION TO STUDENT
+      console.log('📧 Sending approval notification to:', studentId);
       await notifyStudentStatusChange(studentId, departmentId, 'approved');
 
       alert('Student clearance approved successfully!');
@@ -190,10 +191,12 @@ export default function DepartmentDashboard() {
         rejectedAt: new Date().toISOString()
       });
 
-      // NEW: Send notification with reason
+      // 🔔 SEND NOTIFICATION TO STUDENT
       const fullReason = missing
         ? `${reason}. Missing: ${missing}`
         : reason;
+
+      console.log('📧 Sending rejection notification to:', studentId);
       await notifyStudentStatusChange(studentId, departmentId, 'rejected', fullReason);
 
       alert('Clearance rejected. Student will be notified.');

@@ -1,14 +1,14 @@
 // src/components/AdminDashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, Activity, CheckCircle, Clock, AlertCircle, Key, 
+import {
+  Users, Activity, CheckCircle, Clock, AlertCircle, Key,
   Settings, FileText, Trash2, Plus, Edit2, Shield
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  collection, 
-  query, 
-  getDocs, 
+import {
+  collection,
+  query,
+  getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -64,30 +64,37 @@ export default function AdminDashboard() {
 
     try {
       console.log('🗑️ Clearing student_ids collection...');
-      
+
       const studentIdsSnapshot = await getDocs(collection(db, 'student_ids'));
-      
+
       console.log(`Found ${studentIdsSnapshot.size} Student IDs to delete`);
-      
+
       if (studentIdsSnapshot.size === 0) {
         alert('✅ No Student IDs found. Collection is already empty.');
         return;
       }
 
-      const deletePromises = studentIdsSnapshot.docs.map(docSnap => 
+      const deletePromises = studentIdsSnapshot.docs.map(docSnap =>
         deleteDoc(doc(db, 'student_ids', docSnap.id))
       );
-      
+
       await Promise.all(deletePromises);
-      
+
       console.log('✅ All Student IDs cleared!');
       alert(`✅ Successfully deleted ${studentIdsSnapshot.size} Student ID registrations.\n\nUsers can now sign up with any Student ID.`);
-      
+
     } catch (error) {
       console.error('❌ Error clearing Student IDs:', error);
       alert('❌ Error: ' + error.message);
     }
   };
+
+  useEffect(() => {
+    // Load admin utilities in browser console
+    import('../utils/AdminFixes').then(() => {
+      console.log('🔧 Admin utilities loaded!');
+    });
+  }, []);
 
   useEffect(() => {
     // Fetch statistics
@@ -159,9 +166,9 @@ export default function AdminDashboard() {
 
   const generateToken = async () => {
     try {
-      const token = Math.random().toString(36).substring(2, 15) + 
-                    Math.random().toString(36).substring(2, 15);
-      
+      const token = Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
+
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + parseInt(newToken.expiresIn));
 
@@ -184,7 +191,7 @@ export default function AdminDashboard() {
 
   const deleteToken = async (tokenId) => {
     if (!confirm('Are you sure you want to delete this token?')) return;
-    
+
     try {
       await deleteDoc(doc(db, 'department_tokens', tokenId));
       alert('Token deleted successfully');
@@ -209,7 +216,7 @@ export default function AdminDashboard() {
         });
         alert('Requirement added successfully');
       }
-      
+
       setShowRequirementModal(false);
       setEditingRequirement(null);
       setNewRequirement({
@@ -237,7 +244,7 @@ export default function AdminDashboard() {
 
   const deleteRequirement = async (reqId) => {
     if (!confirm('Are you sure you want to delete this requirement?')) return;
-    
+
     try {
       await deleteDoc(doc(db, 'requirements_templates', reqId));
       alert('Requirement deleted successfully');
@@ -282,7 +289,7 @@ export default function AdminDashboard() {
               <Users className="text-indigo-600" size={40} />
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -330,56 +337,52 @@ export default function AdminDashboard() {
         <div className="flex gap-4 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'overview' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'overview' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             <Activity size={18} className="inline mr-2" />
             Overview
           </button>
           {/* NEW: Cleanup Section */}
-            <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="text-red-600 flex-shrink-0 mt-1" size={24} />
-                <div className="flex-1">
-                  <h3 className="font-bold text-lg text-red-800 mb-2">🔧 System Maintenance</h3>
-                  <p className="text-sm text-red-700 mb-3">
-                    If you cleared the students collection and users can't sign up because "Student ID already used", 
-                    click this button to clear the Student ID registry.
-                  </p>
-                  <button
-                    onClick={clearAllStudentIds}
-                    className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold flex items-center gap-2"
-                  >
-                    <Trash2 size={18} />
-                    Clear All Student IDs
-                  </button>
-                </div>
+          <div className="mb-6 p-4 bg-red-50 border-2 border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="text-red-600 flex-shrink-0 mt-1" size={24} />
+              <div className="flex-1">
+                <h3 className="font-bold text-lg text-red-800 mb-2">🔧 System Maintenance</h3>
+                <p className="text-sm text-red-700 mb-3">
+                  If you cleared the students collection and users can't sign up because "Student ID already used",
+                  click this button to clear the Student ID registry.
+                </p>
+                <button
+                  onClick={clearAllStudentIds}
+                  className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold flex items-center gap-2"
+                >
+                  <Trash2 size={18} />
+                  Clear All Student IDs
+                </button>
               </div>
             </div>
+          </div>
           <button
             onClick={() => setActiveTab('tokens')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'tokens' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'tokens' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             <Key size={18} className="inline mr-2" />
             Access Tokens
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'requirements' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'requirements' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             <FileText size={18} className="inline mr-2" />
             Requirements
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${
-              activeTab === 'users' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'users' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
+              }`}
           >
             <Users size={18} className="inline mr-2" />
             Users
@@ -438,7 +441,7 @@ export default function AdminDashboard() {
                     const deptName = departments.find(d => d.id === token.department)?.name;
                     const expiryDate = new Date(token.expiresAt);
                     const createdDate = token.createdAt ? new Date(token.createdAt) : null;
-                    
+
                     return (
                       <tr key={token.id}>
                         <td className="px-6 py-4 font-mono text-sm">{token.token}</td>
@@ -448,11 +451,10 @@ export default function AdminDashboard() {
                           <div className="text-xs text-gray-500">{expiryDate.toLocaleTimeString()}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            token.used ? 'bg-gray-100 text-gray-800' :
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${token.used ? 'bg-gray-100 text-gray-800' :
                             isExpired ? 'bg-red-100 text-red-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
+                              'bg-green-100 text-green-800'
+                            }`}>
                             {token.used ? 'Used' : isExpired ? 'Expired' : 'Active'}
                           </span>
                         </td>
@@ -502,9 +504,8 @@ export default function AdminDashboard() {
                             <div className="flex-1">
                               <p className="font-semibold">{req.title}</p>
                               <p className="text-sm text-gray-600">{req.description}</p>
-                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${
-                                req.required ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
-                              }`}>
+                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${req.required ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
+                                }`}>
                                 {req.required ? 'Required' : 'Optional'}
                               </span>
                             </div>
@@ -553,11 +554,10 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4">{u.name}</td>
                       <td className="px-6 py-4">{u.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${u.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                           u.role === 'student' ? 'bg-blue-100 text-blue-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
+                            'bg-green-100 text-green-800'
+                          }`}>
                           {u.role}
                         </span>
                       </td>

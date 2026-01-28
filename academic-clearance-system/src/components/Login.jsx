@@ -19,11 +19,7 @@ const courses = [
   'BS Computer Science',
   'BS Information Technology',
   'BS Computer Engineering',
-  'BS Electronics Engineering',
-  'BS Civil Engineering',
   'BS Mechanical Engineering',
-  'BS Electrical Engineering',
-  'BS Architecture',
   'BS Accountancy',
   'BS Business Administration',
   'BS Hospitality Management',
@@ -31,15 +27,10 @@ const courses = [
   'BS Nursing',
   'BS Psychology',
   'BS Education',
-  'BS Mathematics',
-  'BS Biology',
-  'BS Chemistry',
-  'BA Communication',
-  'BA Political Science'
 ];
 
 // Section options - can be adjusted based on availability
-const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const sections = ['A', 'B', 'C', 'D', 'E',];
 
 export default function Login() {
   const { login, sendOTPForSignup, verifyOTPAndSignup, resendOTP, error } = useAuth();
