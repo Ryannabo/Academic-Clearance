@@ -1,6 +1,7 @@
 // src/App.jsx
 import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Login from './components/Login';
 import StudentDashboard from './components/StudentDashboard';
 import DepartmentDashboard from './components/DepartmentDashboard';
@@ -11,10 +12,10 @@ function AppContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
@@ -24,25 +25,24 @@ function AppContent() {
     return <Login />;
   }
 
-  // Determine which dashboard to show based on user role
   if (user.role === 'admin') {
     return <AdminDashboard />;
   } else if (user.role === 'student') {
     return <StudentDashboard />;
   } else if (user.role?.startsWith('dept_')) {
-    // All department sub-roles start with "dept_"
     return <DepartmentDashboard />;
   } else {
-    // Fallback for old users without sub-roles
     return <DepartmentDashboard />;
   }
 }
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

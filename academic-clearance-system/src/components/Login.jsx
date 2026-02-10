@@ -1,7 +1,9 @@
-// src/components/Login.jsx (Updated with Section & Unique Student ID Validation)
+// src/components/Login.jsx (Themed Version)
 import React, { useState, useEffect } from 'react';
 import { FileText, Shield, Mail, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import DarkModeToggle from './DarkModeToggle';
 import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -29,11 +31,11 @@ const courses = [
   'BS Education',
 ];
 
-// Section options - can be adjusted based on availability
-const sections = ['A', 'B', 'C', 'D', 'E',];
+const sections = ['A', 'B', 'C', 'D', 'E'];
 
 export default function Login() {
   const { login, sendOTPForSignup, verifyOTPAndSignup, resendOTP, error } = useAuth();
+  const { darkMode } = useTheme();
   const [isSignup, setIsSignup] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [formData, setFormData] = useState({
@@ -54,7 +56,6 @@ export default function Login() {
   const [studentIdError, setStudentIdError] = useState('');
   const [otpTimer, setOtpTimer] = useState(0);
 
-  // Timer for resend OTP
   useEffect(() => {
     if (otpTimer > 0) {
       const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
@@ -65,20 +66,14 @@ export default function Login() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // Format Student ID as user types
     if (name === 'studentId') {
-      // Remove any non-digit characters except hyphen
       let formatted = value.replace(/[^\d-]/g, '');
       
-      // Format as YYYY-NNNNNN
       if (formatted.length <= 4) {
-        // Just the year part
         formatted = formatted;
       } else if (formatted.length === 5 && !formatted.includes('-')) {
-        // Add hyphen after year
         formatted = formatted.slice(0, 4) + '-' + formatted.slice(4);
       } else if (formatted.includes('-')) {
-        // Already has hyphen, limit the number part to 6 digits
         const parts = formatted.split('-');
         if (parts[1] && parts[1].length > 6) {
           parts[1] = parts[1].slice(0, 6);
@@ -103,28 +98,20 @@ export default function Login() {
     }
   };
 
-  // Validate Student ID format
   const validateStudentIdFormat = (studentId) => {
-    // Format: YYYY-NNNNNN (year-number, where number is 1-6 digits)
     const regex = /^\d{4}-\d{1,6}$/;
     return regex.test(studentId);
   };
 
   const checkStudentIdExists = async (studentId) => {
-  try {
-    // Check the student_ids registry collection (not students collection)
-    const idDoc = await getDoc(doc(db, 'student_ids', studentId));
-    
-    console.log(`Checking Student ID: ${studentId}`);
-    console.log(`Exists in registry: ${idDoc.exists()}`);
-    
-    return idDoc.exists(); // Returns true if exists
-  } catch (error) {
-    console.error('Error checking student ID:', error);
-    // If there's an error, assume it doesn't exist to allow signup
-    return false;
-  }
-};
+    try {
+      const idDoc = await getDoc(doc(db, 'student_ids', studentId));
+      return idDoc.exists();
+    } catch (error) {
+      console.error('Error checking student ID:', error);
+      return false;
+    }
+  };
 
   const verifyToken = async (token, department) => {
     try {
@@ -167,7 +154,6 @@ export default function Login() {
     try {
       let tokenId = null;
       
-      // Verify token for department signups
       if (formData.role !== 'student') {
         const verification = await verifyToken(formData.departmentToken, formData.role);
         
@@ -180,23 +166,19 @@ export default function Login() {
         tokenId = verification.tokenId;
       }
 
-      // Validate student information
       if (formData.role === 'student') {
-        // Check all required fields
         if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester || !formData.section) {
           alert('Please fill in all student information including section');
           setLoading(false);
           return;
         }
 
-        // Validate Student ID format
         if (!validateStudentIdFormat(formData.studentId)) {
           setStudentIdError('Invalid Student ID format. Use: YYYY-NNNNNN (e.g., 2022-01132)');
           setLoading(false);
           return;
         }
 
-        // Check if Student ID already exists
         const idExists = await checkStudentIdExists(formData.studentId);
         if (idExists) {
           setStudentIdError('This Student ID is already registered. Please contact the administrator if this is an error.');
@@ -221,10 +203,9 @@ export default function Login() {
         userData.tokenId = tokenId;
       }
 
-      // Send OTP
       await sendOTPForSignup(formData.email, userData);
       setShowOTPVerification(true);
-      setOtpTimer(60); // 60 seconds before resend
+      setOtpTimer(60);
       
     } catch (err) {
       console.error('Signup error:', err);
@@ -287,39 +268,44 @@ export default function Login() {
 
   if (showOTPVerification) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-indigo-950 dark:to-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
+        {/* Dark Mode Toggle - Top Right */}
+        <div className="absolute top-4 right-4">
+          <DarkModeToggle />
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md transition-colors duration-300">
           <div className="text-center mb-8">
-            <div className="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="bg-indigo-600 dark:bg-indigo-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors duration-300">
               <Mail className="text-white" size={32} />
             </div>
-            <h1 className="text-3xl font-bold text-gray-800">Verify Your Email</h1>
-            <p className="text-gray-600 mt-2">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Verify Your Email</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
               We've sent a 6-digit code to<br />
-              <span className="font-semibold">{formData.email}</span>
+              <span className="font-semibold text-gray-800 dark:text-gray-200">{formData.email}</span>
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           )}
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Enter OTP Code
               </label>
               <input
                 type="text"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-center text-2xl tracking-widest font-mono"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent text-center text-2xl tracking-widest font-mono transition-colors duration-300"
                 placeholder="000000"
                 maxLength="6"
               />
-              <p className="text-xs text-gray-500 mt-2 text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                 Code expires in 10 minutes
               </p>
             </div>
@@ -327,20 +313,20 @@ export default function Login() {
             <button
               onClick={handleOTPVerification}
               disabled={loading || otpCode.length !== 6}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400"
+              className="w-full bg-indigo-600 dark:bg-indigo-500 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:bg-indigo-400 dark:disabled:bg-indigo-700 disabled:cursor-not-allowed"
             >
               {loading ? 'Verifying...' : 'Verify & Create Account'}
             </button>
 
             <div className="text-center">
               {otpTimer > 0 ? (
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Resend code in {otpTimer} seconds
                 </p>
               ) : (
                 <button
                   onClick={handleResendOTP}
-                  className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+                  className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 text-sm font-medium"
                 >
                   Resend OTP
                 </button>
@@ -352,7 +338,7 @@ export default function Login() {
                 setShowOTPVerification(false);
                 setOtpCode('');
               }}
-              className="w-full text-gray-600 hover:text-gray-700 text-sm"
+              className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-sm"
             >
               ← Back to signup
             </button>
@@ -363,60 +349,65 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-indigo-950 dark:to-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
+      {/* Dark Mode Toggle - Top Right */}
+      <div className="absolute top-4 right-4">
+        <DarkModeToggle />
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-4xl transition-colors duration-300">
         <div className="text-center mb-8">
-          <div className="bg-indigo-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="bg-indigo-600 dark:bg-indigo-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors duration-300">
             <FileText className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">Academic Clearance</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Academic Clearance</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
             {isSignup ? 'Create your account' : 'Sign in to your account'}
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600">{error}</p>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </div>
         )}
 
         {tokenError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600">{tokenError}</p>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-sm text-red-600 dark:text-red-400">{tokenError}</p>
           </div>
         )}
 
         {studentIdError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-            <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-            <p className="text-sm text-red-600">{studentIdError}</p>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
+            <AlertCircle className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-red-600 dark:text-red-400">{studentIdError}</p>
           </div>
         )}
 
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                 placeholder="Enter your email"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
               <input
                 type="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                 placeholder="Enter your password"
                 required
               />
@@ -427,25 +418,25 @@ export default function Login() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Full Name</label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                     placeholder="Enter your full name"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
                   <select
                     name="role"
                     value={formData.role}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                   >
                     <option value="student">Student</option>
                     {departments.map(dept => (
@@ -459,33 +450,33 @@ export default function Login() {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Student ID <span className="text-red-600">*</span>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Student ID <span className="text-red-600 dark:text-red-400">*</span>
                       </label>
                       <input
                         type="text"
                         name="studentId"
                         value={formData.studentId}
                         onChange={handleChange}
-                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                          studentIdError ? 'border-red-500' : 'border-gray-300'
+                        className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors duration-300 ${
+                          studentIdError ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'
                         }`}
                         placeholder="2022-01132"
                         maxLength="11"
                         required
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Format: YYYY-NNNNNN (e.g., 2022-01132)
                       </p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Course</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Course</label>
                       <select
                         name="course"
                         value={formData.course}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                         required
                       >
                         <option value="">Select Course</option>
@@ -498,12 +489,12 @@ export default function Login() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Year Level</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Year Level</label>
                       <select
                         name="yearLevel"
                         value={formData.yearLevel}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                         required
                       >
                         <option value="">Select Year</option>
@@ -516,12 +507,12 @@ export default function Login() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Semester</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Semester</label>
                       <select
                         name="semester"
                         value={formData.semester}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                         required
                       >
                         <option value="">Select Semester</option>
@@ -532,14 +523,14 @@ export default function Login() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Section <span className="text-red-600">*</span>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Section <span className="text-red-600 dark:text-red-400">*</span>
                       </label>
                       <select
                         name="section"
                         value={formData.section}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                         required
                       >
                         <option value="">Select Section</option>
@@ -554,19 +545,19 @@ export default function Login() {
 
               {formData.role !== 'student' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department Access Token <span className="text-red-600">*</span>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Department Access Token <span className="text-red-600 dark:text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     name="departmentToken"
                     value={formData.departmentToken}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors duration-300"
                     placeholder="Enter token provided by admin"
                     required
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Contact admin to get your department access token
                   </p>
                 </div>
@@ -577,7 +568,7 @@ export default function Login() {
           <button
             onClick={isSignup ? handleSignupSubmit : handleLoginSubmit}
             disabled={loading}
-            className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-indigo-400"
+            className="w-full bg-indigo-600 dark:bg-indigo-500 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:bg-indigo-400 dark:disabled:bg-indigo-700 disabled:cursor-not-allowed"
           >
             {loading ? 'Please wait...' : (isSignup ? 'Send OTP' : 'Sign In')}
           </button>
@@ -590,7 +581,7 @@ export default function Login() {
                 setTokenError('');
                 setStudentIdError('');
               }}
-              className="text-indigo-600 hover:text-indigo-700 text-sm font-medium"
+              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 text-sm font-medium"
             >
               {isSignup ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </button>
@@ -598,8 +589,8 @@ export default function Login() {
         </div>
 
         {!isSignup && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-xs text-gray-600 text-center">
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
               <Shield className="inline mr-1" size={14} />
               Admin access? Contact system administrator
             </p>

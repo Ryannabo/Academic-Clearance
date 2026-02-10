@@ -1,10 +1,11 @@
-// src/components/StudentDashboard.jsx (Fixed - No Duplicates + Department Notifications)
+// src/components/StudentDashboard.jsx (WITH DARK MODE)
 import React, { useState, useEffect } from 'react';
 import { Upload, CheckCircle, Clock, Download, Bell, User, XCircle, AlertCircle, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationPanel from './NotificationPanel';
 import { createNotification, notifyDepartmentNewSubmission } from '../utils/notifications';
-import ProfileView from './profileView';
+import ProfileView from './ProfileView';
+import DarkModeToggle from './DarkModeToggle';
 import {
   collection,
   query,
@@ -56,7 +57,6 @@ export default function StudentDashboard() {
 
     fetchStudentData();
 
-    // Subscribe to requirements templates
     const templatesQuery = query(collection(db, 'requirements_templates'));
     const unsubscribeTemplates = onSnapshot(templatesQuery, (snapshot) => {
       const templates = {};
@@ -70,7 +70,6 @@ export default function StudentDashboard() {
       setRequirementTemplates(templates);
     });
 
-    // Subscribe to each department's requirement for this student
     const unsubscribers = departments.map(dept => {
       const reqDocRef = doc(db, 'clearance_requirements', dept.id, 'students', user.uid);
 
@@ -103,7 +102,7 @@ export default function StudentDashboard() {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
-    const maxSize = 1 * 1024 * 1024; // 1MB
+    const maxSize = 1 * 1024 * 1024;
     const oversizedFiles = files.filter(f => f.size > maxSize);
     if (oversizedFiles.length > 0) {
       alert(`Some files are too large. Maximum size is 1MB per file.\n\nOversized files:\n${oversizedFiles.map(f => `• ${f.name} (${(f.size / 1024 / 1024).toFixed(2)}MB)`).join('\n')}`);
@@ -132,14 +131,12 @@ export default function StudentDashboard() {
       const currentReq = requirements[deptId];
 
       if (currentReq) {
-        // Update existing submission
         await updateDoc(reqDocRef, {
           files: [...(currentReq.files || []), ...uploadedFiles],
           status: 'pending',
           updatedAt: new Date().toISOString()
         });
       } else {
-        // Create new submission
         await setDoc(reqDocRef, {
           studentId: user.uid,
           studentName: studentData?.name || user.name,
@@ -158,8 +155,6 @@ export default function StudentDashboard() {
 
       const deptName = departments.find(d => d.id === deptId)?.name || deptId;
 
-      // 🔔 CREATE NOTIFICATION FOR STUDENT (confirmation)
-      console.log('📧 Creating upload confirmation for student:', user.uid);
       await createNotification(
         user.uid,
         'pending',
@@ -168,8 +163,6 @@ export default function StudentDashboard() {
         { department: deptId, fileCount: uploadedFiles.length }
       );
 
-      // 🔔 NOTIFY DEPARTMENT USERS (NEW!)
-      console.log('📧 Notifying department users about new submission...');
       await notifyDepartmentNewSubmission(
         deptId,
         studentData?.name || user.name,
@@ -256,11 +249,11 @@ export default function StudentDashboard() {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'approved':
-        return <CheckCircle className="text-green-600" size={20} />;
+        return <CheckCircle className="text-green-600 dark:text-green-400" size={20} />;
       case 'rejected':
-        return <XCircle className="text-red-600" size={20} />;
+        return <XCircle className="text-red-600 dark:text-red-400" size={20} />;
       default:
-        return <Clock className="text-amber-600" size={20} />;
+        return <Clock className="text-amber-600 dark:text-amber-400" size={20} />;
     }
   };
 
@@ -275,52 +268,42 @@ export default function StudentDashboard() {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'approved':
-        return 'text-green-600';
-      case 'rejected':
-        return 'text-red-600';
-      default:
-        return 'text-amber-600';
-    }
-  };
-
   const approvedCount = departments.filter(d => requirements[d.id]?.status === 'approved').length;
   const submittedCount = departments.filter(d => requirements[d.id]).length;
   const progress = submittedCount > 0 ? (approvedCount / submittedCount) * 100 : 0;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-indigo-600">Clearance System</h1>
+          <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">Clearance System</h1>
           <div className="flex items-center gap-4">
+            <DarkModeToggle />
             <NotificationPanel />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowProfile(true)}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg"
+                className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
-                <User size={20} />
-                <span className="font-medium">{user?.name}</span>
+                <User size={20} className="text-gray-600 dark:text-gray-400" />
+                <span className="font-medium text-gray-800 dark:text-gray-200">{user?.name}</span>
               </button>
-              <ProfileView isOpen={showProfile} onClose={() => setShowProfile(false)} />       
+              <ProfileView isOpen={showProfile} onClose={() => setShowProfile(false)} />
             </div>
             <button
               onClick={logout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700"
+              className="bg-red-600 dark:bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
             >
               Logout
             </button>
@@ -329,27 +312,27 @@ export default function StudentDashboard() {
       </nav>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-6 p-6 transition-colors duration-300">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">Welcome, {user?.name}</h2>
-              <p className="text-gray-600">Student ID: {studentData?.studentId || 'N/A'}</p>
-              <p className="text-sm text-gray-500">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Welcome, {user?.name}</h2>
+              <p className="text-gray-600 dark:text-gray-400">Student ID: {studentData?.studentId || 'N/A'}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500">
                 {studentData?.course} - {studentData?.yearLevel} - {studentData?.semester} - Section {studentData?.section}
               </p>
               <div className="mt-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium">Clearance Progress:</span>
-                  <span className="text-sm text-indigo-600 font-bold">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Clearance Progress:</span>
+                  <span className="text-sm text-indigo-600 dark:text-indigo-400 font-bold">
                     {approvedCount}/{submittedCount} Approved
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-500 dark:text-gray-500">
                     ({submittedCount}/7 departments submitted)
                   </span>
                 </div>
-                <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="w-64 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-indigo-600 transition-all"
+                    className="h-full bg-indigo-600 dark:bg-indigo-500 transition-all"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
@@ -357,7 +340,7 @@ export default function StudentDashboard() {
             </div>
             <button
               onClick={exportToPDF}
-              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+              className="flex items-center gap-2 bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
             >
               <Download size={20} />
               Export PDF
@@ -368,24 +351,28 @@ export default function StudentDashboard() {
         <div className="flex gap-4 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'overview' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-              }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'overview' 
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
             Overview
           </button>
           <button
             onClick={() => setActiveTab('upload')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap ${activeTab === 'upload' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'
-              }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'upload' 
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
             Upload Files
           </button>
         </div>
 
-        {/* OVERVIEW TAB - Only Summary */}
+        {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-xl font-bold mb-4">Clearance Status Summary</h3>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Clearance Status Summary</h3>
 
             {departments.map(dept => {
               const req = requirements[dept.id];
@@ -394,43 +381,42 @@ export default function StudentDashboard() {
               const filesCount = req?.files?.length || 0;
 
               return (
-                <div key={dept.id} className="border rounded-lg p-4 mb-3 hover:shadow-md transition-shadow">
+                <div key={dept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 hover:shadow-md transition-all duration-300 bg-white dark:bg-gray-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">
                       <span className="text-2xl">{dept.icon}</span>
                       <div className="flex-1">
-                        <p className="font-semibold">{dept.name}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="font-semibold text-gray-800 dark:text-gray-100">{dept.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
                           {!hasSubmission ? 'No submission yet' : `${filesCount} file${filesCount !== 1 ? 's' : ''} uploaded`}
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-4">
-                      {/* Status Badge */}
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${status === 'approved' ? 'bg-green-100 text-green-800' :
-                        status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          hasSubmission ? 'bg-amber-100 text-amber-800' :
-                            'bg-gray-100 text-gray-800'
-                        }`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
+                        status === 'rejected' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' :
+                        hasSubmission ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400' :
+                        'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                      }`}>
                         {status === 'approved' ? '✓ Approved' :
                           status === 'rejected' ? '✗ Rejected' :
-                            hasSubmission ? '⏳ Pending' :
-                              '○ Not Submitted'}
+                          hasSubmission ? '⏳ Pending' :
+                          '○ Not Submitted'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Show rejection reason if rejected */}
                   {status === 'rejected' && req.rejectionReason && (
-                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
                       <div className="flex items-start gap-2">
-                        <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                        <AlertCircle className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" size={18} />
                         <div>
-                          <p className="text-sm font-medium text-red-800">Rejection Reason:</p>
-                          <p className="text-sm text-red-700 mt-1">{req.rejectionReason}</p>
+                          <p className="text-sm font-medium text-red-800 dark:text-red-400">Rejection Reason:</p>
+                          <p className="text-sm text-red-700 dark:text-red-400 mt-1">{req.rejectionReason}</p>
                           {req.missingRequirements && (
-                            <p className="text-sm text-red-700 mt-1">
+                            <p className="text-sm text-red-700 dark:text-red-400 mt-1">
                               <strong>Missing:</strong> {req.missingRequirements}
                             </p>
                           )}
@@ -444,11 +430,11 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* UPLOAD TAB - With File Upload Functionality */}
+        {/* UPLOAD TAB */}
         {activeTab === 'upload' && (
           <div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-800">
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800 dark:text-blue-400">
                 📌 <strong>Upload files to each department separately.</strong> You can upload to one department now and others later. Each upload goes ONLY to the selected department.
               </p>
             </div>
@@ -460,39 +446,39 @@ export default function StudentDashboard() {
                 const isApproved = req?.status === 'approved';
 
                 return (
-                  <div key={dept.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+                  <div key={dept.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-all duration-300">
                     <div className="flex items-center gap-3 mb-4">
                       <span className="text-3xl">{dept.icon}</span>
                       <div className="flex-1">
-                        <h3 className="font-bold text-lg">{dept.name}</h3>
-                        <p className="text-xs text-gray-500">Upload files for this department only</p>
+                        <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">{dept.name}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Upload files for this department only</p>
                       </div>
                     </div>
 
                     <div className="space-y-3">
-                      {/* Show lock message if approved */}
                       {isApproved ? (
-                        <div className="border-2 border-green-300 bg-green-50 rounded-lg p-6 text-center">
-                          <CheckCircle className="mx-auto mb-2 text-green-600" size={40} />
-                          <p className="font-semibold text-green-800 mb-1">Clearance Approved! ✓</p>
-                          <p className="text-sm text-green-700">
+                        <div className="border-2 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/30 rounded-lg p-6 text-center">
+                          <CheckCircle className="mx-auto mb-2 text-green-600 dark:text-green-400" size={40} />
+                          <p className="font-semibold text-green-800 dark:text-green-400 mb-1">Clearance Approved! ✓</p>
+                          <p className="text-sm text-green-700 dark:text-green-400">
                             File uploads are locked for this department.
                           </p>
-                          <p className="text-xs text-green-600 mt-2">
+                          <p className="text-xs text-green-600 dark:text-green-500 mt-2">
                             Contact the department if you need to make changes.
                           </p>
                         </div>
                       ) : (
                         <label className="block">
-                          <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${isUploading
-                            ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
-                            : 'border-gray-300 hover:border-indigo-500 hover:bg-indigo-50'
-                            }`}>
-                            <Upload className="mx-auto mb-2 text-gray-400" />
-                            <p className="text-sm text-gray-600">
+                          <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-300 ${
+                            isUploading
+                              ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 cursor-not-allowed'
+                              : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                          }`}>
+                            <Upload className="mx-auto mb-2 text-gray-400 dark:text-gray-500" />
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
                               {isUploading ? 'Uploading...' : 'Click to upload files'}
                             </p>
-                            <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG (max 1MB each)</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">PDF, JPG, PNG (max 1MB each)</p>
                             <input
                               type="file"
                               multiple
@@ -505,39 +491,42 @@ export default function StudentDashboard() {
                         </label>
                       )}
 
-                      {/* Show uploaded files with preview option */}
                       {req?.files && req.files.length > 0 && (
-                        <div className={`p-3 rounded-lg ${req.status === 'approved' ? 'bg-green-50 border border-green-200' :
-                          req.status === 'rejected' ? 'bg-red-50 border border-red-200' :
-                            'bg-amber-50 border border-amber-200'
+                        <div className={`p-3 rounded-lg ${
+                          req.status === 'approved' 
+                            ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800' :
+                          req.status === 'rejected' 
+                            ? 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800' :
+                          'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800'
+                        }`}>
+                          <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${
+                            req.status === 'approved' ? 'text-green-700 dark:text-green-400' :
+                            req.status === 'rejected' ? 'text-red-700 dark:text-red-400' :
+                            'text-amber-700 dark:text-amber-400'
                           }`}>
-                          <p className={`text-sm font-medium mb-2 flex items-center gap-1 ${req.status === 'approved' ? 'text-green-700' :
-                            req.status === 'rejected' ? 'text-red-700' :
-                              'text-amber-700'
-                            }`}>
                             {getStatusIcon(req.status)}
                             <span className="ml-1">{getStatusText(req.status)}</span>
                           </p>
                           <div className="space-y-2 max-h-40 overflow-y-auto">
                             {req.files.map((file, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border">
+                              <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
                                 <div className="flex items-center gap-2 flex-1">
-                                  <FileText size={16} className="text-gray-500 flex-shrink-0" />
+                                  <FileText size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium truncate">{file.name}</p>
-                                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)}KB</p>
+                                    <p className="text-xs font-medium truncate text-gray-800 dark:text-gray-200">{file.name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500">{(file.size / 1024).toFixed(1)}KB</p>
                                   </div>
                                 </div>
                                 <div className="flex gap-2 ml-2">
                                   <button
                                     onClick={() => previewFileHandler(file)}
-                                    className="text-indigo-600 hover:text-indigo-800 text-xs px-2 py-1 border border-indigo-300 rounded"
+                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 text-xs px-2 py-1 border border-indigo-300 dark:border-indigo-700 rounded transition-colors"
                                   >
                                     Preview
                                   </button>
                                   <button
                                     onClick={() => downloadFile(file)}
-                                    className="text-green-600 hover:text-green-800"
+                                    className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300"
                                   >
                                     <Download size={16} />
                                   </button>
@@ -558,13 +547,13 @@ export default function StudentDashboard() {
 
       {/* File Preview Modal */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-75 dark:bg-opacity-90 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 transition-colors duration-300">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">{previewFile.name}</h3>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">{previewFile.name}</h3>
               <button
                 onClick={() => setPreviewFile(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
               >
                 <XCircle size={24} />
               </button>
@@ -580,16 +569,16 @@ export default function StudentDashboard() {
               ) : previewFile.type === 'application/pdf' ? (
                 <iframe
                   src={previewFile.data}
-                  className="w-full h-[70vh] border rounded-lg"
+                  className="w-full h-[70vh] border border-gray-300 dark:border-gray-600 rounded-lg"
                   title={previewFile.name}
                 />
               ) : (
                 <div className="text-center py-12">
-                  <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600">Preview not available for this file type</p>
+                  <FileText size={48} className="mx-auto mb-4 text-gray-400 dark:text-gray-500" />
+                  <p className="text-gray-600 dark:text-gray-400">Preview not available for this file type</p>
                   <button
                     onClick={() => downloadFile(previewFile)}
-                    className="mt-4 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
+                    className="mt-4 bg-indigo-600 dark:bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
                   >
                     Download File
                   </button>
