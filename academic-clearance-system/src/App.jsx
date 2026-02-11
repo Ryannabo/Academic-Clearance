@@ -1,4 +1,4 @@
-// src/App.jsx
+// src/App.jsx – SIMPLIFIED, MODAL REMOVED
 import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -8,7 +8,7 @@ import DepartmentDashboard from './components/DepartmentDashboard';
 import AdminDashboard from './components/AdminDashboard';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, loading, is2FAPending } = useAuth();
 
   if (loading) {
     return (
@@ -21,16 +21,16 @@ function AppContent() {
     );
   }
 
-  if (!user) {
+  // Stay on login if not authenticated OR 2FA is pending
+  if (!user || is2FAPending) {
     return <Login />;
   }
 
+  // Authenticated – show dashboard
   if (user.role === 'admin') {
     return <AdminDashboard />;
   } else if (user.role === 'student') {
     return <StudentDashboard />;
-  } else if (user.role?.startsWith('dept_')) {
-    return <DepartmentDashboard />;
   } else {
     return <DepartmentDashboard />;
   }

@@ -1,281 +1,298 @@
-// src/context/AuthContext.jsx (Updated to support Section)
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { 
+// src/context/AuthContext.jsx – COMPLETE, FIXED
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  signOut,
+  signOut as firebaseSignOut,
   onAuthStateChanged
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import { generateOTP, sendOTPEmail } from '../utils/emailOTP';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  is2FAEnabled,
+  generateOTP,
+  storeOTP,
+  sendOTPEmail
+} from '../utils/Twofactorauth';
+import {
+  createSession,
+  validateSession,
+  deleteSession,
+  updateSessionActivity
+} from '../utils/sessionManager';
+import { isDeviceTrusted, trustDevice } from '../utils/deviceTrust';
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
+  const [is2FAPending, setIs2FAPending] = useState(false); // 🆕 Exposed to block redirects
+  const is2FAPendingRef = useRef(false); // Sync flag for listener
 
+  // ─────────────────────────────────────────────────────────
+  // 1️⃣ AUTH STATE LISTENER – Handles 2FA & session creation
+  // ─────────────────────────────────────────────────────────
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (is2FAPendingRef.current) {
+        setLoading(false);
+        return;
+      }
+
       if (firebaseUser) {
         try {
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            setUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              ...userDoc.data()
-            });
-          } else {
-            setUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email
-            });
+          if (!userDoc.exists()) {
+            console.error('User document not found');
+            await firebaseSignOut(auth);
+            setLoading(false);
+            return;
           }
-        } catch (err) {
-          console.error('Error fetching user data:', err);
-          setUser({
+
+          const userData = {
             uid: firebaseUser.uid,
-            email: firebaseUser.email
-          });
+            email: firebaseUser.email,
+            ...userDoc.data()
+          };
+
+          // ✅ 2FA CHECK – if enabled and not yet pending, start OTP flow
+          if (userData.twoFactorEnabled === true && !pendingUser) {
+            // 🆕 Check if this device is already trusted
+            const trusted = await isDeviceTrusted(firebaseUser.uid);
+            if (trusted) {
+              console.log('✅ Device trusted – bypassing 2FA');
+              // Proceed with normal login (create session)
+              const sessionResult = await createSession(
+                firebaseUser.uid,
+                userData.email,
+                userData.name
+              );
+              if (sessionResult.success) {
+                setUser(userData);
+                setSessionId(sessionResult.sessionId);
+              }
+              setLoading(false);
+              return;
+            }
+
+            // Not trusted → start OTP flow
+            const otp = generateOTP();
+            await storeOTP(firebaseUser.uid, userData.email, otp);
+            await sendOTPEmail(userData.email, otp, userData.name);
+
+            is2FAPendingRef.current = true;
+            setIs2FAPending(true);
+            setPendingUser(userData);
+            setShow2FAModal(true);
+            setLoading(false);
+            return;
+          }
+
+          // ─────────────────────────────────────────────────
+          // No 2FA → normal login / session restore
+          // ─────────────────────────────────────────────────
+          const currentSessionId = localStorage.getItem('sessionId');
+          if (currentSessionId) {
+            const sessionValidation = await validateSession(currentSessionId);
+            if (!sessionValidation.valid) {
+              console.log('Session invalid, logging out...');
+              await handleLogout();
+              setLoading(false);
+              return;
+            }
+          }
+
+          const sessionResult = await createSession(
+            firebaseUser.uid,
+            userData.email,
+            userData.name
+          );
+
+          if (sessionResult.success) {
+            setUser(userData);
+            setSessionId(sessionResult.sessionId);
+          } else {
+            console.error('Failed to create session');
+          }
+        } catch (error) {
+          console.error('Auth state error:', error);
         }
       } else {
+        // User is signed out
         setUser(null);
+        setSessionId(null);
+        localStorage.removeItem('sessionId');
       }
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
-  const login = async (email, password) => {
-    try {
-      setError(null);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      return userCredential.user;
-    } catch (err) {
-      setError(err.message);
-      throw err;
+  // ─────────────────────────────────────────────────────────
+  // 2️⃣ 2FA VERIFIED CALLBACK
+  // ─────────────────────────────────────────────────────────
+  const handle2FAVerified = async (trustDeviceFlag = false) => {
+    if (!pendingUser) return;
+
+    // 🆕 Save trusted device if user opted in
+    if (trustDeviceFlag) {
+      await trustDevice(pendingUser.uid);
+    }
+
+    const sessionResult = await createSession(
+      pendingUser.uid,
+      pendingUser.email,
+      pendingUser.name
+    );
+
+    if (sessionResult.success) {
+      setUser(pendingUser);
+      setSessionId(sessionResult.sessionId);
+      setShow2FAModal(false);
+      setPendingUser(null);
+      setIs2FAPending(false);
+      is2FAPendingRef.current = false;
+    } else {
+      alert('Failed to create session. Please try again.');
     }
   };
 
-  const sendOTPForSignup = async (email, userData) => {
+  // ─────────────────────────────────────────────────────────
+  // 3️⃣ SIGN IN – Now just calls Firebase Auth
+  // ─────────────────────────────────────────────────────────
+  const signIn = async (email, password) => {
     try {
-      setError(null);
-      
-      const otp = generateOTP();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-      
-      // Store OTP in Firestore
-      await setDoc(doc(db, 'pending_verifications', email), {
-        otp,
-        email,
-        userData,
-        expiresAt: expiresAt.toISOString(),
-        createdAt: new Date().toISOString()
+      await signInWithEmailAndPassword(auth, email, password);
+      return { success: true };
+    } catch (error) {
+      console.error('Login error:', error);
+      let errorMessage = 'Unknown error';
+      if (error.code === 'auth/wrong-password') errorMessage = 'Invalid credentials';
+      else if (error.code === 'auth/user-not-found') errorMessage = 'No account found with this email';
+      else if (error.code === 'auth/too-many-requests') errorMessage = 'Too many failed attempts. Try again later.';
+      else if (error.message) errorMessage = error.message;
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // 4️⃣ SIGN UP – Always returns clear error messages
+  // ─────────────────────────────────────────────────────────
+  const signUp = async (email, password, userData) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      await setDoc(doc(db, 'users', firebaseUser.uid), {
+        ...userData,
+        email: firebaseUser.email,
+        createdAt: new Date().toISOString(),
+        twoFactorEnabled: false
       });
-      
-      console.log('📧 Attempting to send OTP email...');
-      
-      // Try to send email
-      const emailSent = await sendOTPEmail(email, otp, userData.name);
-      
-      if (emailSent) {
-        alert(`✅ OTP sent to ${email}!\n\nPlease check your inbox (and spam folder).`);
+
+      const sessionResult = await createSession(
+        firebaseUser.uid,
+        firebaseUser.email,
+        userData.name
+      );
+
+      if (!sessionResult.success) throw new Error('Failed to create session. Please try again.');
+
+      const newUser = { uid: firebaseUser.uid, email: firebaseUser.email, ...userData };
+      setUser(newUser);
+      setSessionId(sessionResult.sessionId);
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Signup error:', error);
+      let errorMessage = 'Unknown error during signup';
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'Email is already registered.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Password should be at least 6 characters.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address.';
+            break;
+          default:
+            errorMessage = error.message || 'Signup failed.';
+        }
       } else {
-        // Fallback for demo/testing
-        console.warn('⚠️ Email not sent, showing OTP in console');
-        alert(`⚠️ Email service not configured.\n\nYour OTP is: ${otp}\n\n(Check browser console)`);
+        errorMessage = error.message || 'Signup failed.';
       }
-      
-      return true;
-    } catch (err) {
-      console.error('Error in sendOTPForSignup:', err);
-      setError(err.message);
-      throw err;
+      return { success: false, error: errorMessage };
     }
   };
 
-  const verifyOTPAndSignup = async (email, otp, password) => {
-  try {
-    setError(null);
-    
-    const verificationDoc = await getDoc(doc(db, 'pending_verifications', email));
-    
-    if (!verificationDoc.exists()) {
-      throw new Error('No pending verification found. Please request a new OTP.');
-    }
-    
-    const verificationData = verificationDoc.data();
-    
-    if (new Date(verificationData.expiresAt) < new Date()) {
-      await deleteDoc(doc(db, 'pending_verifications', email));
-      throw new Error('OTP has expired. Please request a new one.');
-    }
-    
-    if (verificationData.otp !== otp) {
-      throw new Error('Invalid OTP. Please try again.');
-    }
-    
-    // For students, check Student ID one more time before creating account
-    if (verificationData.userData.role === 'student') {
-      const studentId = verificationData.userData.studentId;
-      
-      // Check if ID was registered while user was entering OTP
-      const idDoc = await getDoc(doc(db, 'student_ids', studentId));
-      if (idDoc.exists()) {
-        await deleteDoc(doc(db, 'pending_verifications', email));
-        throw new Error('This Student ID was just registered by another user. Please contact the administrator.');
-      }
-      
-      // Register the Student ID first (atomically)
-      try {
-        await setDoc(doc(db, 'student_ids', studentId), {
-          userId: 'pending', // Temporary, will update after user creation
-          email: email,
-          registeredAt: new Date().toISOString()
-        });
-      } catch (idError) {
-        console.error('Error registering student ID:', idError);
-        throw new Error('This Student ID is already in use. Please contact the administrator.');
-      }
-    }
-    
-    // Create user account
-    let userCredential;
+  // ─────────────────────────────────────────────────────────
+  // 5️⃣ LOGOUT
+  // ─────────────────────────────────────────────────────────
+  const handleLogout = async () => {
     try {
-      userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    } catch (authError) {
-      // If user creation fails, remove the student ID registration
-      if (verificationData.userData.role === 'student') {
-        await deleteDoc(doc(db, 'student_ids', verificationData.userData.studentId));
+      const currentSessionId = localStorage.getItem('sessionId');
+      if (currentSessionId && user) {
+        await deleteSession(user.uid, currentSessionId);
       }
-      throw authError;
-    }
-    
-    // Create user document in Firestore
-    await setDoc(doc(db, 'users', userCredential.user.uid), {
-      email,
-      ...verificationData.userData,
-      emailVerified: true,
-      createdAt: new Date().toISOString()
-    });
-
-    // If student, create student document and update student_ids
-    if (verificationData.userData.role === 'student') {
-      const studentId = verificationData.userData.studentId;
-      
-      await setDoc(doc(db, 'students', userCredential.user.uid), {
-        name: verificationData.userData.name,
-        studentId: studentId,
-        course: verificationData.userData.course,
-        yearLevel: verificationData.userData.yearLevel,
-        semester: verificationData.userData.semester,
-        section: verificationData.userData.section,
-        email: email,
-        createdAt: new Date().toISOString()
-      });
-      
-      // Update student_ids with actual userId
-      await updateDoc(doc(db, 'student_ids', studentId), {
-        userId: userCredential.user.uid,
-        updatedAt: new Date().toISOString()
-      });
-    }
-    
-    // Mark token as used (only for department signups)
-    if (verificationData.userData.tokenId) {
-      try {
-        await updateDoc(doc(db, 'department_tokens', verificationData.userData.tokenId), {
-          used: true,
-          usedAt: new Date().toISOString(),
-          usedBy: email
-        });
-      } catch (tokenError) {
-        console.error('Error marking token as used:', tokenError);
-      }
-    }
-    
-    // Delete pending verification
-    await deleteDoc(doc(db, 'pending_verifications', email));
-    
-    return userCredential.user;
-  } catch (err) {
-    setError(err.message);
-    throw err;
-  }
-};
-
-  const resendOTP = async (email) => {
-    try {
-      setError(null);
-      
-      const verificationDoc = await getDoc(doc(db, 'pending_verifications', email));
-      
-      if (!verificationDoc.exists()) {
-        throw new Error('No pending verification found. Please restart signup.');
-      }
-      
-      const verificationData = verificationDoc.data();
-      const otp = generateOTP();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-      
-      // Update OTP in Firestore
-      await updateDoc(doc(db, 'pending_verifications', email), {
-        otp,
-        expiresAt: expiresAt.toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      
-      console.log('📧 Attempting to resend OTP email...');
-      
-      // Try to send email
-      const emailSent = await sendOTPEmail(email, otp, verificationData.userData.name);
-      
-      if (emailSent) {
-        alert(`✅ New OTP sent to ${email}!`);
-      } else {
-        console.warn('⚠️ Email not sent, showing OTP in console');
-        alert(`⚠️ Email service not configured.\n\nYour new OTP is: ${otp}`);
-      }
-      
-      return true;
-    } catch (err) {
-      console.error('Error in resendOTP:', err);
-      setError(err.message);
-      throw err;
+      await firebaseSignOut(auth);
+      setUser(null);
+      setSessionId(null);
+      localStorage.removeItem('sessionId');
+      setIs2FAPending(false);
+      is2FAPendingRef.current = false;
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
 
-  const logout = async () => {
-    try {
-      setError(null);
-      await signOut(auth);
-    } catch (err) {
-      setError(err.message);
-      throw err;
-    }
-  };
+  // ─────────────────────────────────────────────────────────
+  // 6️⃣ ACTIVITY MONITORING – keep session alive
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const activityInterval = setInterval(() => {
+      const currentSessionId = localStorage.getItem('sessionId');
+      if (currentSessionId && user) updateSessionActivity(currentSessionId);
+    }, 60000);
+
+    const handleActivity = () => {
+      const currentSessionId = localStorage.getItem('sessionId');
+      if (currentSessionId) updateSessionActivity(currentSessionId);
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keypress', handleActivity);
+
+    return () => {
+      clearInterval(activityInterval);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keypress', handleActivity);
+    };
+  }, [user]);
 
   const value = {
     user,
     loading,
-    error,
-    login,
-    sendOTPForSignup,
-    verifyOTPAndSignup,
-    resendOTP,
-    logout
+    sessionId,
+    signIn,
+    signUp,
+    logout: handleLogout,
+    show2FAModal,
+    setShow2FAModal,
+    pendingUser,
+    handle2FAVerified,
+    is2FAPending, // 🆕 EXPOSED – used in App.jsx to block redirects
   };
 
   return (

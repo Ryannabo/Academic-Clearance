@@ -80,23 +80,37 @@ export default function AdminDashboard() {
     // Fetch statistics
     const fetchStats = async () => {
       try {
+        // 1. Total students – top-level collection (✅ allowed)
         const studentsSnapshot = await getDocs(collection(db, 'students'));
+        const totalStudents = studentsSnapshot.size;
+
+        // 2. Total clearances – top-level collection (✅ allowed)
         const clearancesSnapshot = await getDocs(collection(db, 'clearances'));
-        const requirementsSnapshot = await getDocs(collection(db, 'clearance_requirements'));
+        const totalClearances = clearancesSnapshot.size;
 
-        const pending = requirementsSnapshot.docs.filter(
-          doc => doc.data().status === 'pending'
-        ).length;
+        // 3. Pending approvals – loop through each department (✅ now allowed)
+        let pendingCount = 0;
+        for (const dept of departments) {
+          try {
+            const requirementsRef = collection(db, 'clearance_requirements', dept.id, 'students');
+            const snapshot = await getDocs(requirementsRef);
+            pendingCount += snapshot.docs.filter(doc => doc.data().status === 'pending').length;
+          } catch (deptError) {
+            console.warn(`Could not fetch requirements for ${dept.name}:`, deptError);
+            // Continue with other departments even if one fails
+          }
+        }
 
-        const completed = clearancesSnapshot.docs.filter(
+        // 4. Completed clearances – from clearances collection
+        const completedCount = clearancesSnapshot.docs.filter(
           doc => doc.data().status === 'completed'
         ).length;
 
         setStats({
-          totalStudents: studentsSnapshot.size,
-          totalClearances: clearancesSnapshot.size,
-          pendingApprovals: pending,
-          completedClearances: completed,
+          totalStudents,
+          totalClearances,
+          pendingApprovals: pendingCount,
+          completedClearances: completedCount,
           totalDepartments: 7
         });
       } catch (error) {
@@ -196,7 +210,7 @@ export default function AdminDashboard() {
     try {
       const tokenToDelete = tokens.find(t => t.id === tokenId);
       await deleteDoc(doc(db, 'department_tokens', tokenId));
-      
+
       // Log audit event
       await logAuditEvent('TOKEN_DELETED', {
         department: departments.find(d => d.id === tokenToDelete?.department)?.name,
@@ -217,7 +231,7 @@ export default function AdminDashboard() {
           ...newRequirement,
           updatedAt: new Date().toISOString()
         });
-        
+
         // Log audit event
         await logAuditEvent('REQUIREMENT_UPDATED', {
           department: departments.find(d => d.id === newRequirement.department)?.name,
@@ -230,7 +244,7 @@ export default function AdminDashboard() {
           ...newRequirement,
           createdAt: new Date().toISOString()
         });
-        
+
         // Log audit event
         await logAuditEvent('REQUIREMENT_CREATED', {
           department: departments.find(d => d.id === newRequirement.department)?.name,
@@ -271,7 +285,7 @@ export default function AdminDashboard() {
     try {
       const reqToDelete = requirements.find(r => r.id === reqId);
       await deleteDoc(doc(db, 'requirements_templates', reqId));
-      
+
       // Log audit event
       await logAuditEvent('REQUIREMENT_DELETED', {
         department: departments.find(d => d.id === reqToDelete?.department)?.name,
@@ -386,55 +400,50 @@ export default function AdminDashboard() {
         <div className="flex gap-4 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'overview' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'overview'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
           >
             <Activity size={18} className="inline mr-2" />
             Overview
           </button>
           <button
             onClick={() => setActiveTab('tokens')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'tokens' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'tokens'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
           >
             <Key size={18} className="inline mr-2" />
             Access Tokens
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'requirements' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'requirements'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
           >
             <FileText size={18} className="inline mr-2" />
             Requirements
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'users' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'users'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
           >
             <Users size={18} className="inline mr-2" />
             Users
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'audit' 
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white' 
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'audit'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
           >
             <History size={18} className="inline mr-2" />
             Audit Trail
@@ -502,13 +511,12 @@ export default function AdminDashboard() {
                           <div className="text-xs text-gray-500 dark:text-gray-400">{expiryDate.toLocaleTimeString()}</div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            token.used 
-                              ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300' 
-                              : isExpired 
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' 
-                                : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                          }`}>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${token.used
+                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                            : isExpired
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                            }`}>
                             {token.used ? 'Used' : isExpired ? 'Expired' : 'Active'}
                           </span>
                         </td>
@@ -558,11 +566,10 @@ export default function AdminDashboard() {
                             <div className="flex-1">
                               <p className="font-semibold text-gray-800 dark:text-gray-100">{req.title}</p>
                               <p className="text-sm text-gray-600 dark:text-gray-400">{req.description}</p>
-                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${
-                                req.required 
-                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' 
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
-                              }`}>
+                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${req.required
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
+                                }`}>
                                 {req.required ? 'Required' : 'Optional'}
                               </span>
                             </div>
@@ -611,13 +618,12 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{u.name}</td>
                       <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{u.email}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          u.role === 'admin' 
-                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' 
-                            : u.role === 'student' 
-                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' 
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                        }`}>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${u.role === 'admin'
+                          ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400'
+                          : u.role === 'student'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                          }`}>
                           {u.role}
                         </span>
                       </td>
@@ -637,7 +643,7 @@ export default function AdminDashboard() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
             <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Audit Trail</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Showing last 50 admin actions</p>
-            
+
             {auditLogs.length === 0 ? (
               <div className="text-center py-12">
                 <History className="mx-auto mb-4 text-gray-400 dark:text-gray-500" size={48} />

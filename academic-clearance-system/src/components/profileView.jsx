@@ -1,17 +1,23 @@
 // src/components/ProfileView.jsx
 import React, { useState, useEffect } from 'react';
-import { X, User, Mail, Book, Calendar, Edit2, Save, Camera, School, Hash } from 'lucide-react';
+import {
+  X, User, Mail, Book, Calendar, Edit2, Save,
+  School, Hash, Shield, Clock
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import SecuritySettings from './SecuritySettings';
 
 export default function ProfileView({ isOpen, onClose }) {
+  // ---------- YOUR EXACT LOGIC (unchanged) ----------
   const { user } = useAuth();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editedData, setEditedData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showSecurity, setShowSecurity] = useState(false);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -22,15 +28,12 @@ export default function ProfileView({ isOpen, onClose }) {
   const fetchProfileData = async () => {
     setLoading(true);
     try {
-      // Fetch user document
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      
       if (userDoc.exists()) {
         const userData = userDoc.data();
         setProfileData(userData);
         setEditedData(userData);
-        
-        // If student, also fetch student-specific data
+
         if (userData.role === 'student') {
           const studentDoc = await getDoc(doc(db, 'students', user.uid));
           if (studentDoc.exists()) {
@@ -40,7 +43,6 @@ export default function ProfileView({ isOpen, onClose }) {
           }
         }
       }
-      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -67,14 +69,12 @@ export default function ProfileView({ isOpen, onClose }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Update user document
       await updateDoc(doc(db, 'users', user.uid), {
         name: editedData.name,
         email: editedData.email,
         updatedAt: new Date().toISOString()
       });
 
-      // If student, update student document
       if (profileData.role === 'student') {
         await updateDoc(doc(db, 'students', user.uid), {
           name: editedData.name,
@@ -98,140 +98,171 @@ export default function ProfileView({ isOpen, onClose }) {
     }
   };
 
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+  // ---------- END OF YOUR LOGIC ----------
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white relative">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-50 p-2 rounded-lg">
+              <User className="w-5 h-5 text-indigo-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900">Profile</h2>
+            <span className="text-sm text-gray-500 capitalize">
+              {profileData?.role?.replace(/_/g, ' ') || 'Account'}
+            </span>
+          </div>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white hover:bg-white/20 p-2 rounded-full transition-colors"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
-          
-          <div className="flex items-center gap-4">
-            <div className="bg-white/20 backdrop-blur-sm p-4 rounded-full">
-              <User size={48} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">My Profile</h2>
-              <p className="text-blue-100 text-sm">
-                {profileData?.role === 'student' ? 'Student Account' :
-                 profileData?.role === 'admin' ? 'Administrator Account' :
-                 'Department Account'}
-              </p>
-            </div>
-          </div>
         </div>
 
-        {/* Body */}
+        {/* Content */}
         <div className="p-6">
           {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-200 border-t-indigo-600"></div>
               <p className="mt-4 text-gray-600">Loading profile...</p>
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Basic Information */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-gray-800">Basic Information</h3>
-                  {!editing ? (
-                    <button
-                      onClick={handleEdit}
-                      className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 text-sm font-medium"
-                    >
-                      <Edit2 size={16} />
-                      Edit Profile
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCancel}
-                        className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        <Save size={16} />
-                        {saving ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </div>
+              {/* Profile header with avatar and inline edit */}
+              <div className="flex items-start gap-4">
+                {/* Avatar - fixed size, no overflow */}
+                <div className="flex-shrink-0">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-xl font-semibold shadow-sm">
+                    {getInitials(profileData?.name)}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl font-bold text-gray-900 truncate">
+                    {profileData?.name}
+                  </h3>
+                  <p className="text-gray-600 flex items-center gap-1.5 mt-0.5 text-sm truncate">
+                    <Mail size={14} />
+                    {profileData?.email}
+                  </p>
+                  {profileData?.role === 'student' && profileData?.studentId && (
+                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
+                      <Hash size={14} />
+                      ID: {profileData.studentId}
+                    </p>
                   )}
                 </div>
+                {!editing && (
+                  <button
+                    onClick={handleEdit}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                  >
+                    <Edit2 size={15} />
+                    Edit
+                  </button>
+                )}
+              </div>
 
+              {/* Edit mode actions */}
+              {editing && (
+                <div className="flex justify-end gap-3 pt-2 pb-1">
+                  <button
+                    onClick={handleCancel}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Basic Information Card */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <User size={14} className="text-indigo-500" />
+                  Basic Information
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Name */}
                   <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                      <User size={16} />
-                      Full Name
-                    </label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Full name</label>
                     {editing ? (
                       <input
                         type="text"
                         value={editedData.name || ''}
                         onChange={(e) => handleChange('name', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                        placeholder="Your full name"
                       />
                     ) : (
-                      <p className="px-4 py-2 bg-gray-50 rounded-lg">{profileData?.name}</p>
+                      <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                        {profileData?.name}
+                      </div>
                     )}
                   </div>
-
-                  {/* Email */}
                   <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                      <Mail size={16} />
-                      Email Address
-                    </label>
-                    <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-500">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                    <div className="px-3 py-2 bg-gray-100 rounded-lg border border-gray-200 text-sm text-gray-600 flex items-center gap-2">
+                      <Mail size={14} />
                       {profileData?.email}
-                      <span className="ml-2 text-xs">(Cannot be changed)</span>
-                    </p>
+                      <span className="text-xs text-gray-400 ml-auto">read-only</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Student-specific Information */}
+              {/* Student Academic Information */}
               {profileData?.role === 'student' && (
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4">Academic Information</h3>
-                  
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <Book size={14} className="text-indigo-500" />
+                    Academic Information
+                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Student ID */}
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Hash size={16} />
-                        Student ID
-                      </label>
-                      <p className="px-4 py-2 bg-gray-50 rounded-lg text-gray-500">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Student ID</label>
+                      <div className="px-3 py-2 bg-gray-100 rounded-lg border border-gray-200 text-sm text-gray-600">
                         {profileData?.studentId}
-                        <span className="ml-2 text-xs">(Cannot be changed)</span>
-                      </p>
+                        <span className="text-xs text-gray-400 ml-2">read-only</span>
+                      </div>
                     </div>
-
-                    {/* Course */}
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Book size={16} />
-                        Course/Program
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Course / Program</label>
                       {editing ? (
                         <select
                           value={editedData.course || ''}
                           onChange={(e) => handleChange('course', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
-                          <option value="">Select Course</option>
+                          <option value="">Select course</option>
                           <option value="BS Computer Science">BS Computer Science</option>
                           <option value="BS Information Technology">BS Information Technology</option>
                           <option value="BS Computer Engineering">BS Computer Engineering</option>
@@ -245,23 +276,20 @@ export default function ProfileView({ isOpen, onClose }) {
                           <option value="BS Education">BS Education</option>
                         </select>
                       ) : (
-                        <p className="px-4 py-2 bg-gray-50 rounded-lg">{profileData?.course}</p>
+                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                          {profileData?.course || '—'}
+                        </div>
                       )}
                     </div>
-
-                    {/* Year Level */}
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <School size={16} />
-                        Year Level
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Year Level</label>
                       {editing ? (
                         <select
                           value={editedData.yearLevel || ''}
                           onChange={(e) => handleChange('yearLevel', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
-                          <option value="">Select Year</option>
+                          <option value="">Select year</option>
                           <option value="1st Year">1st Year</option>
                           <option value="2nd Year">2nd Year</option>
                           <option value="3rd Year">3rd Year</option>
@@ -269,45 +297,39 @@ export default function ProfileView({ isOpen, onClose }) {
                           <option value="5th Year">5th Year</option>
                         </select>
                       ) : (
-                        <p className="px-4 py-2 bg-gray-50 rounded-lg">{profileData?.yearLevel}</p>
+                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                          {profileData?.yearLevel || '—'}
+                        </div>
                       )}
                     </div>
-
-                    {/* Semester */}
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <Calendar size={16} />
-                        Semester
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Semester</label>
                       {editing ? (
                         <select
                           value={editedData.semester || ''}
                           onChange={(e) => handleChange('semester', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
-                          <option value="">Select Semester</option>
+                          <option value="">Select semester</option>
                           <option value="1st Semester">1st Semester</option>
                           <option value="2nd Semester">2nd Semester</option>
                           <option value="Summer">Summer</option>
                         </select>
                       ) : (
-                        <p className="px-4 py-2 bg-gray-50 rounded-lg">{profileData?.semester}</p>
+                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                          {profileData?.semester || '—'}
+                        </div>
                       )}
                     </div>
-
-                    {/* Section */}
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <User size={16} />
-                        Section
-                      </label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Section</label>
                       {editing ? (
                         <select
                           value={editedData.section || ''}
                           onChange={(e) => handleChange('section', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
-                          <option value="">Select Section</option>
+                          <option value="">Select section</option>
                           <option value="A">A</option>
                           <option value="B">B</option>
                           <option value="C">C</option>
@@ -315,87 +337,96 @@ export default function ProfileView({ isOpen, onClose }) {
                           <option value="E">E</option>
                         </select>
                       ) : (
-                        <p className="px-4 py-2 bg-gray-50 rounded-lg">{profileData?.section}</p>
+                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                          {profileData?.section || '—'}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Department Information */}
+              {/* Department Information (non‑student, non‑admin) */}
               {profileData?.role !== 'student' && profileData?.role !== 'admin' && (
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4">Department Information</h3>
-                  
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <School size={14} className="text-indigo-500" />
+                    Department Information
+                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <User size={16} />
-                        Department
-                      </label>
-                      <p className="px-4 py-2 bg-gray-50 rounded-lg capitalize">
-                        {profileData?.department?.replace(/_/g, ' ')}
-                      </p>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Department</label>
+                      <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm capitalize">
+                        {profileData?.department?.replace(/_/g, ' ') || '—'}
+                      </div>
                     </div>
-                    
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
-                        <User size={16} />
-                        Role
-                      </label>
-                      <p className="px-4 py-2 bg-gray-50 rounded-lg capitalize">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                      <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm capitalize">
                         {profileData?.role?.replace(/_/g, ' ')}
-                      </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Account Information */}
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Account Information</h3>
-                
+              {/* Account Timeline */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <Clock size={14} className="text-indigo-500" />
+                  Account Timeline
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2">Account Created</label>
-                    <p className="px-4 py-2 bg-gray-50 rounded-lg text-sm">
-                      {profileData?.createdAt 
-                        ? new Date(profileData.createdAt).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Created</label>
+                    <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                      {profileData?.createdAt
+                        ? new Date(profileData.createdAt).toLocaleString('en-US', {
+                            year: 'numeric', month: 'long', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
                           })
                         : 'N/A'}
-                    </p>
+                    </div>
                   </div>
-
                   {profileData?.updatedAt && (
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2">Last Updated</label>
-                      <p className="px-4 py-2 bg-gray-50 rounded-lg text-sm">
-                        {new Date(profileData.updatedAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Last updated</label>
+                      <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                        {new Date(profileData.updatedAt).toLocaleString('en-US', {
+                          year: 'numeric', month: 'long', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
                         })}
-                      </p>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Security Section */}
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Security</h3>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
-                    🔒 <strong>Password Management:</strong> To change your password, please contact the system administrator.
+              {/* Security Section - Original, no extra buttons */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <Shield size={14} className="text-indigo-500" />
+                  Security
+                </h4>
+                <button
+                  onClick={() => setShowSecurity(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Shield size={18} />
+                  Two‑Factor Authentication
+                </button>
+                <div className="mt-4 bg-blue-50/50 border border-blue-100 rounded-lg p-3">
+                  <p className="text-xs text-blue-700 flex items-start gap-2">
+                    <span className="text-blue-500">🔒</span>
+                    <span>
+                      <strong>Password management:</strong> To change your password, please contact the system administrator.
+                    </span>
                   </p>
                 </div>
+                <SecuritySettings
+                  isOpen={showSecurity}
+                  onClose={() => setShowSecurity(false)}
+                />
               </div>
             </div>
           )}
