@@ -570,7 +570,7 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-indigo-600 dark:bg-indigo-500 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors disabled:bg-indigo-400 dark:disabled:bg-indigo-700 disabled:cursor-not-allowed"
           >
-            {loading ? 'Please wait...' : (isSignup ? 'Send OTP' : 'Sign In')}
+            {loading ? 'Please wait....' : (isSignup ? 'Send OTP' : 'Sign In')}
           </button>
 
           <div className="text-center">
