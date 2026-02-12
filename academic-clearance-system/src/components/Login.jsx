@@ -63,6 +63,27 @@ export default function Login() {
     }
   }, [otpTimer]);
 
+  // 🚫 COMPLETELY REMOVE SCROLLBARS ON LOGIN PAGE
+  useEffect(() => {
+    // Save original overflow values
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalRootOverflow = document.getElementById('root')?.style.overflow;
+
+    // Hide scrollbars
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    const root = document.getElementById('root');
+    if (root) root.style.overflow = 'hidden';
+
+    // Restore on unmount
+    return () => {
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []); // Empty deps = runs once on mount
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'studentId') {
@@ -341,12 +362,12 @@ export default function Login() {
   // ─────────────────────────────────────────────────────────
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-indigo-950 dark:to-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-indigo-950 dark:to-gray-900 flex items-center justify-center p-4 overflow-hidden transition-colors duration-300">
         <div className="absolute top-4 right-4"><DarkModeToggle /></div>
         <div className={`
-          bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full transition-colors duration-300
-          ${isSignup ? 'max-w-2xl' : 'max-w-md'}
-        `}>
+        bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 w-full transition-colors duration-300
+        ${isSignup ? 'max-w-2xl' : 'max-w-md'}
+      `}>
           {/* ... all your existing form JSX ... (unchanged) */}
           <div className="text-center mb-8">
             <div className="bg-indigo-600 dark:bg-indigo-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">

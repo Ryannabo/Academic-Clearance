@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, Activity, CheckCircle, Clock, AlertCircle, Key,
-  Settings, FileText, Trash2, Plus, Edit2, Shield, History
+  Settings, FileText, Trash2, Plus, Edit2, Shield, History,
+  Database, Download, Upload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import DarkModeToggle from './DarkModeToggle';
@@ -18,7 +19,9 @@ import {
   serverTimestamp,
   where,
   orderBy,
-  limit
+  limit,
+  setDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -59,6 +62,26 @@ export default function AdminDashboard() {
     description: '',
     required: true
   });
+
+  // Backup & Recovery state
+  const [selectedCollections, setSelectedCollections] = useState([]);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [backupMessage, setBackupMessage] = useState(null);
+  const [collectionList] = useState([
+    'users',
+    'students',
+    'clearances',
+    'department_tokens',
+    'requirements_templates',
+    'audit_logs',
+    'sessions',
+    'student_ids'
+  ]);
+
+  // Total Cleaner state
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [clearLoading, setClearLoading] = useState(false);
 
   // Audit Trail Function
   const logAuditEvent = async (action, details) => {
@@ -224,6 +247,241 @@ export default function AdminDashboard() {
     }
   };
 
+  // ========== BACKUP & RECOVERY HANDLERS (FIXED PERMISSIONS) ==========
+
+  // ✅ Only collections that admin can read (top-level)
+  const handleExportBackup = async () => {
+    if (selectedCollections.length === 0) {
+      setBackupMessage({ type: 'error', text: 'Please select at least one collection.' });
+      return;
+    }
+
+    setBackupLoading(true);
+    setBackupMessage(null);
+
+    try {
+      const backupData = {};
+      const skippedCollections = [];
+
+      for (const collectionName of selectedCollections) {
+        try {
+          const snapshot = await getDocs(collection(db, collectionName));
+          backupData[collectionName] = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+        } catch (error) {
+          // Permission denied or collection doesn't exist – skip it
+          console.warn(`⚠️ Skipping ${collectionName}: ${error.message}`);
+          skippedCollections.push(collectionName);
+        }
+      }
+
+      if (Object.keys(backupData).length === 0) {
+        throw new Error('No collections could be read. Check permissions.');
+      }
+
+      // Add metadata
+      backupData._metadata = {
+        exportedAt: new Date().toISOString(),
+        exportedBy: user?.email,
+        collections: Object.keys(backupData).filter(k => k !== '_metadata'),
+        version: '1.0'
+      };
+
+      // Create and download JSON file
+      const jsonString = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `firestore-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      const successMessage = `✅ Backup successful! Exported ${Object.keys(backupData).length - 1} collection(s).`;
+      const warningMessage = skippedCollections.length > 0
+        ? ` ⚠️ Skipped: ${skippedCollections.join(', ')} (no read permission)`
+        : '';
+
+      setBackupMessage({
+        type: 'success',
+        text: successMessage + warningMessage
+      });
+
+      // Log audit event
+      await logAuditEvent('BACKUP_EXPORTED', {
+        collections: Object.keys(backupData).filter(k => k !== '_metadata'),
+        skipped: skippedCollections,
+        documentCounts: Object.fromEntries(
+          Object.keys(backupData)
+            .filter(k => k !== '_metadata')
+            .map(col => [col, backupData[col]?.length || 0])
+        )
+      });
+
+    } catch (error) {
+      console.error('Export error:', error);
+      setBackupMessage({ type: 'error', text: '❌ Export failed: ' + error.message });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImportBackup = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!confirm('⚠️ WARNING: This will OVERWRITE existing documents with the same IDs. Are you absolutely sure?')) {
+      event.target.value = '';
+      return;
+    }
+
+    setRestoreLoading(true);
+    setBackupMessage(null);
+
+    try {
+      const fileContent = await file.text();
+      const backupData = JSON.parse(fileContent);
+
+      if (!backupData._metadata) {
+        throw new Error('Invalid backup file: missing metadata.');
+      }
+
+      let totalRestored = 0;
+
+      for (const [collectionName, documents] of Object.entries(backupData)) {
+        if (collectionName === '_metadata') continue;
+
+        if (!Array.isArray(documents)) {
+          console.warn(`Skipping ${collectionName}: not an array`);
+          continue;
+        }
+
+        for (const docData of documents) {
+          if (!docData.id) {
+            console.warn(`Skipping document in ${collectionName}: missing id`);
+            continue;
+          }
+
+          const { id, ...data } = docData;
+          const docRef = doc(db, collectionName, id);
+          await setDoc(docRef, data); // ✅ setDoc must be imported
+          totalRestored++;
+        }
+      }
+
+      setBackupMessage({
+        type: 'success',
+        text: `✅ Restore complete! ${totalRestored} documents restored from ${Object.keys(backupData).length - 1} collection(s).`
+      });
+
+      await logAuditEvent('BACKUP_RESTORED', {
+        filename: file.name,
+        collections: Object.keys(backupData).filter(k => k !== '_metadata'),
+        documentCount: totalRestored
+      });
+
+    } catch (error) {
+      console.error('Restore error:', error);
+      setBackupMessage({ type: 'error', text: '❌ Restore failed: ' + error.message });
+    } finally {
+      setRestoreLoading(false);
+      event.target.value = '';
+    }
+  };
+
+  // ========== TOTAL CLEANER – ULTRA THROTTLED FOR SPARK ==========
+  const handleClearCollections = async () => {
+    if (deleteConfirmText !== 'DELETE') return;
+    if (selectedCollections.length === 0) {
+      alert('Please select at least one collection to clear.');
+      return;
+    }
+
+    // 🛡️ VERIFY ADMIN STATUS FIRST
+    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+      alert('❌ Admin verification failed. Cannot delete.');
+      return;
+    }
+
+    const reallySure = window.confirm(
+      `🔥 FINAL WARNING: You are about to delete ALL documents from:\n\n` +
+      selectedCollections.join(', ') +
+      `\n\n⚠️ Spark plan: 20,000 writes/deletes per day.\n` +
+      `This operation is EXTREMELY SLOW (3s delay between batches of 20).\n` +
+      `Large collections may take hours.\n\n` +
+      `Do you have a backup ready?`
+    );
+    if (!reallySure) return;
+
+    setClearLoading(true);
+    try {
+      let totalDeleted = 0;
+      const failedCollections = [];
+      const BATCH_SIZE = 20;        // 🔥 Tiny batches
+      const DELAY_MS = 3000;        // 🔥 3 seconds between batches
+
+      const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+      for (const collectionName of selectedCollections) {
+        try {
+          console.log(`🔄 Clearing ${collectionName}...`);
+          const snapshot = await getDocs(collection(db, collectionName));
+          const docs = snapshot.docs;
+
+          if (docs.length === 0) continue;
+
+          for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const batchDocs = docs.slice(i, i + BATCH_SIZE);
+            batchDocs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            totalDeleted += batchDocs.length;
+
+            console.log(`  ✅ Deleted ${totalDeleted} / ${docs.length} from ${collectionName}`);
+
+            // ⏳ Wait before next batch
+            if (i + BATCH_SIZE < docs.length) {
+              await sleep(DELAY_MS);
+            }
+          }
+        } catch (error) {
+          if (error.code === 'resource-exhausted') {
+            alert(`❌ Quota exceeded! Stopped at ${totalDeleted} deletions.\nUpgrade to Blaze plan or wait 24h.`);
+            break;
+          }
+          if (error.code === 'permission-denied') {
+            console.warn(`⚠️ Permission denied for ${collectionName} – skipping.`);
+            failedCollections.push(collectionName);
+          } else {
+            console.error(`Failed to clear ${collectionName}:`, error);
+            failedCollections.push(collectionName);
+          }
+        }
+      }
+
+      await logAuditEvent('TOTAL_CLEANER_EXECUTED', {
+        collections: selectedCollections.filter(c => !failedCollections.includes(c)),
+        deletedCount: totalDeleted,
+        failedCollections
+      });
+
+      alert(`✅ Cleared ${totalDeleted} documents.\n⚠️ Failed: ${failedCollections.join(', ') || 'none'}`);
+      setDeleteConfirmText('');
+      if (typeof fetchStats === 'function') fetchStats();
+
+    } catch (error) {
+      console.error('Clear error:', error);
+      alert('❌ Failed: ' + error.message);
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   const saveRequirement = async () => {
     try {
       if (editingRequirement) {
@@ -315,6 +573,35 @@ export default function AdminDashboard() {
     }
     return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
+
+  {/* ========== QUOTA MONITOR ========== */ }
+  {
+    activeTab === 'backup' && (
+      <>
+        {/* ... your existing backup UI ... */}
+
+        {/* PASTE THIS AFTER YOUR EXISTING BACKUP CONTENT */}
+        {quotaExceeded && (
+          <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/30 border-2 border-red-300 dark:border-red-700 rounded-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
+              <h3 className="text-lg font-bold text-red-800 dark:text-red-300">⚠️ Daily Write Quota Exhausted</h3>
+            </div>
+            <p className="text-sm text-red-700 dark:text-red-400 mb-3">
+              You've used all 20,000 daily writes. Restore operations, OTP emails, and session creation are temporarily blocked.
+            </p>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-red-200 dark:border-red-800">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">⏳ Time until quota reset (Pacific Time):</p>
+              <p className="text-2xl font-mono font-bold text-indigo-600 dark:text-indigo-400">{timeUntilReset}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                Reset occurs daily at midnight Pacific Time. Use this timer to plan your testing.
+              </p>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
@@ -447,6 +734,16 @@ export default function AdminDashboard() {
           >
             <History size={18} className="inline mr-2" />
             Audit Trail
+          </button>
+          <button
+            onClick={() => setActiveTab('backup')}
+            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'backup'
+              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+          >
+            <Database size={18} className="inline mr-2" />
+            Backup & Recovery
           </button>
         </div>
 
@@ -811,7 +1108,139 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+      )}{/* ========== BACKUP & RECOVERY TAB ========== */}
+      {activeTab === 'backup' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Backup & Recovery</h2>
+            <div className="flex gap-3">
+              <button
+                onClick={handleExportBackup}
+                disabled={backupLoading}
+                className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Download size={18} />
+                {backupLoading ? 'Exporting...' : 'Export Backup'}
+              </button>
+              <label className="bg-green-600 dark:bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2 cursor-pointer">
+                <Upload size={18} />
+                Restore Backup
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImportBackup}
+                  disabled={restoreLoading}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Status messages */}
+          {backupMessage && (
+            <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${backupMessage.type === 'success'
+              ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800'
+              : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800'
+              }`}>
+              {backupMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+              {backupMessage.text}
+            </div>
+          )}
+
+          {/* Collection selector */}
+          <div className="mb-6">
+            <h3 className="font-semibold text-lg mb-3 text-gray-800 dark:text-gray-200">Select Collections to Backup</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {collectionList.map(col => (
+                <label key={col} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedCollections.includes(col)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedCollections([...selectedCollections, col]);
+                      } else {
+                        setSelectedCollections(selectedCollections.filter(c => c !== col));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{col}</span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => setSelectedCollections(collectionList)} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                Select All
+              </button>
+              <button onClick={() => setSelectedCollections([])} className="text-xs text-gray-600 dark:text-gray-400 hover:underline">
+                Clear All
+              </button>
+            </div>
+          </div>
+
+          {/* ===== DANGER ZONE – TOTAL CLEANER ===== */}
+          <div className="mt-8 border-t-2 border-red-200 dark:border-red-800 pt-6">
+            <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
+                <h3 className="text-lg font-bold text-red-800 dark:text-red-300">⚠️ Danger Zone – Total Cleaner</h3>
+              </div>
+
+              <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+                This will <strong>permanently delete ALL documents</strong> from the selected collections below.
+                Use only to test backup & restore functionality.
+              </p>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-red-800 dark:text-red-300 mb-2">
+                  Confirm by typing <span className="font-mono bg-red-100 dark:bg-red-800 px-2 py-1 rounded">DELETE</span>:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="w-full md:w-64 px-4 py-2 border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                />
+              </div>
+
+              <button
+                onClick={handleClearCollections}
+                disabled={deleteConfirmText !== 'DELETE' || clearLoading}
+                className="bg-red-600 dark:bg-red-700 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+              >
+                {clearLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={20} />
+                    DELETE SELECTED COLLECTIONS
+                  </>
+                )}
+              </button>
+
+              <p className="text-xs text-red-600 dark:text-red-400 mt-4">
+                ⚠️ This action cannot be undone. Make sure you have a backup file ready to restore.
+              </p>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <p className="text-sm text-blue-800 dark:text-blue-400">
+              <strong>📌 How it works:</strong><br />
+              • <strong>Export:</strong> Downloads a JSON file containing all documents from selected collections.<br />
+              • <strong>Restore:</strong> Upload a previously exported JSON file to restore data. <span className="font-bold">Existing documents with same ID will be overwritten.</span><br />
+              • This backup is stored <strong>locally on your computer</strong> – no cloud storage costs.
+            </p>
+          </div>
+        </div>
       )}
+
     </div>
   );
 }

@@ -1,20 +1,22 @@
 // src/utils/sessionManager.js - SESSION MANAGEMENT SYSTEM
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
   deleteDoc,
   query,
   where,
   getDocs,
-  onSnapshot
+  onSnapshot,
+  writeBatch // 🔥 IMPORT THIS – WAS MISSING
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-const MAX_SESSIONS_PER_USER = 3; // Maximum concurrent sessions
+const MAX_SESSIONS_PER_USER = 3;
+const ACTIVITY_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes – don't write more often
 
 /**
  * Generate unique session ID
@@ -57,10 +59,10 @@ export const createSession = async (userId, userEmail, userName) => {
 
     // Check existing sessions
     const existingSessions = await getUserSessions(userId);
-    
+
     // If max sessions reached, delete oldest
     if (existingSessions.length >= MAX_SESSIONS_PER_USER) {
-      const oldestSession = existingSessions.sort((a, b) => 
+      const oldestSession = existingSessions.sort((a, b) =>
         new Date(a.createdAt) - new Date(b.createdAt)
       )[0];
       await deleteSession(userId, oldestSession.sessionId);
@@ -94,7 +96,7 @@ export const createSession = async (userId, userEmail, userName) => {
 };
 
 /**
- * Update session activity
+ * Update session activity – THROTTLED: only updates if last update > 5 min ago
  */
 export const updateSessionActivity = async (sessionId) => {
   try {
@@ -107,13 +109,27 @@ export const updateSessionActivity = async (sessionId) => {
       return { success: false, message: 'Session not found' };
     }
 
+    const sessionData = sessionDoc.data();
+    const lastActivity = new Date(sessionData.lastActivity);
+    const now = new Date();
+
+    // ⏳ Only write if last activity was more than 5 minutes ago
+    if (now - lastActivity < ACTIVITY_UPDATE_INTERVAL) {
+      return { success: true, skipped: true };
+    }
+
     await updateDoc(sessionRef, {
-      lastActivity: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + SESSION_TIMEOUT).toISOString()
+      lastActivity: now.toISOString(),
+      expiresAt: new Date(now.getTime() + SESSION_TIMEOUT).toISOString()
     });
 
-    return { success: true };
+    return { success: true, skipped: false };
   } catch (error) {
+    // Don't crash on quota errors – just log and return
+    if (error.code === 'resource-exhausted') {
+      console.warn('⚠️ Quota exceeded – session update skipped');
+      return { success: false, error: 'quota_exceeded' };
+    }
     console.error('Error updating session:', error);
     return { success: false, error: error.message };
   }
@@ -150,7 +166,7 @@ export const validateSession = async (sessionId) => {
     }
 
     // Update last activity
-    await updateSessionActivity(sessionId);
+    //await updateSessionActivity(sessionId);
 
     return { valid: true, session };
   } catch (error) {
@@ -169,7 +185,6 @@ export const getUserSessions = async (userId) => {
       where('userId', '==', userId),
       where('active', '==', true)
     );
-
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
@@ -186,14 +201,12 @@ export const deleteSession = async (userId, sessionId) => {
     if (!sessionId) {
       sessionId = localStorage.getItem('sessionId');
     }
-
     if (sessionId) {
       await deleteDoc(doc(db, 'sessions', sessionId));
       localStorage.removeItem('sessionId');
       localStorage.removeItem('sessionCreatedAt');
       console.log('✅ Session deleted:', sessionId);
     }
-
     return { success: true };
   } catch (error) {
     console.error('Error deleting session:', error);
@@ -207,15 +220,12 @@ export const deleteSession = async (userId, sessionId) => {
 export const deleteAllUserSessions = async (userId) => {
   try {
     const sessions = await getUserSessions(userId);
-    
-    const deletePromises = sessions.map(session => 
+    const deletePromises = sessions.map(session =>
       deleteDoc(doc(db, 'sessions', session.sessionId))
     );
-
     await Promise.all(deletePromises);
     localStorage.removeItem('sessionId');
     localStorage.removeItem('sessionCreatedAt');
-
     console.log(`✅ Deleted ${sessions.length} sessions for user:`, userId);
     return { success: true, count: sessions.length };
   } catch (error) {
@@ -225,30 +235,49 @@ export const deleteAllUserSessions = async (userId) => {
 };
 
 /**
- * Clean up expired sessions (run periodically)
+ * Clean up expired sessions – THROTTLED for Spark plan
+ * Deletes max 500 sessions per minute to stay under quota.
  */
 export const cleanupExpiredSessions = async () => {
   try {
-    const snapshot = await getDocs(collection(db, 'sessions'));
+    const sessionsRef = collection(db, 'sessions');
     const now = new Date();
-    let deletedCount = 0;
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const q = query(
+      sessionsRef,
+      where('expiresAt', '<', oneHourAgo.toISOString()),
+      limit(500)
+    );
 
-    const deletePromises = snapshot.docs
-      .filter(doc => {
-        const expiresAt = new Date(doc.data().expiresAt);
-        return now > expiresAt;
-      })
-      .map(doc => {
-        deletedCount++;
-        return deleteDoc(doc.ref);
-      });
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      console.log('🧹 No expired sessions to clean');
+      return;
+    }
 
-    await Promise.all(deletePromises);
-    console.log(`🧹 Cleaned up ${deletedCount} expired sessions`);
-    return { success: true, count: deletedCount };
+    console.log(`🧹 Cleaning ${snapshot.size} expired sessions (throttled)`);
+    let deleted = 0;
+    const BATCH_SIZE = 100;
+    const DELAY_MS = 2000;
+
+    for (let i = 0; i < snapshot.docs.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const batchDocs = snapshot.docs.slice(i, i + BATCH_SIZE);
+      batchDocs.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+      deleted += batchDocs.length;
+      console.log(`  ✅ Deleted ${deleted} / ${snapshot.size} sessions`);
+      if (i + BATCH_SIZE < snapshot.docs.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+      }
+    }
+    console.log(`🧹 Cleanup complete: deleted ${deleted} sessions`);
   } catch (error) {
-    console.error('Error cleaning up sessions:', error);
-    return { success: false, error: error.message };
+    if (error.code === 'resource-exhausted') {
+      console.warn('⚠️ Quota exceeded during session cleanup – will retry later');
+    } else {
+      console.error('Error cleaning up sessions:', error);
+    }
   }
 };
 
@@ -256,10 +285,8 @@ export const cleanupExpiredSessions = async () => {
  * Subscribe to session changes (for real-time updates)
  */
 export const subscribeToSession = (sessionId, callback) => {
-  if (!sessionId) return () => {};
-
+  if (!sessionId) return () => { };
   const sessionRef = doc(db, 'sessions', sessionId);
-  
   return onSnapshot(sessionRef, (snapshot) => {
     if (snapshot.exists()) {
       callback({ exists: true, data: snapshot.data() });
@@ -276,10 +303,8 @@ export const getSessionDuration = (createdAt) => {
   const start = new Date(createdAt);
   const now = new Date();
   const duration = now - start;
-
   const minutes = Math.floor(duration / 60000);
   const hours = Math.floor(minutes / 60);
-
   if (hours > 0) {
     return `${hours}h ${minutes % 60}m`;
   }
@@ -293,11 +318,9 @@ export const formatLastActivity = (lastActivity) => {
   const last = new Date(lastActivity);
   const now = new Date();
   const diff = now - last;
-
   const seconds = Math.floor(diff / 1000);
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
-
   if (hours > 0) return `${hours}h ago`;
   if (minutes > 0) return `${minutes}m ago`;
   return 'Just now';

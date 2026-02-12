@@ -4,10 +4,27 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  signOut
 } from 'firebase/auth';
 import { auth, db } from '../firebase/config';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  serverTimestamp,
+  where,
+  orderBy,
+  limit,
+  query,
+  setDoc,      // ✅ REQUIRED for restore
+  writeBatch   // ✅ REQUIRED for total cleaner
+} from 'firebase/firestore';
 import {
   is2FAEnabled,
   generateOTP,
@@ -171,17 +188,41 @@ export const AuthProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────
   // 3️⃣ SIGN IN – Now just calls Firebase Auth
   // ─────────────────────────────────────────────────────────
+
   const signIn = async (email, password) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Check if Firestore document exists
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        // 🚧 DEV MODE: Auto-create missing document
+        await setDoc(userDocRef, {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || email.split('@')[0],
+          role: 'student', // ⚠️ DEFAULT ROLE – change to 'admin' if needed
+          createdAt: new Date().toISOString(),
+          twoFactorEnabled: false
+        });
+        console.log('✅ Auto-created missing user document for:', firebaseUser.uid);
+      }
+      
+      let role = 'student';
+      if (email === 'admin@mail.com') role = 'admin'; // your admin email
+
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
+
       let errorMessage = 'Unknown error';
       if (error.code === 'auth/wrong-password') errorMessage = 'Invalid credentials';
       else if (error.code === 'auth/user-not-found') errorMessage = 'No account found with this email';
       else if (error.code === 'auth/too-many-requests') errorMessage = 'Too many failed attempts. Try again later.';
       else if (error.message) errorMessage = error.message;
+
       return { success: false, error: errorMessage };
     }
   };
@@ -260,26 +301,56 @@ export const AuthProvider = ({ children }) => {
   // ─────────────────────────────────────────────────────────
   // 6️⃣ ACTIVITY MONITORING – keep session alive
   // ─────────────────────────────────────────────────────────
+  // Session activity updater – only writes if session is near expiry
+  // Session activity updater – THROTTLED
   useEffect(() => {
-    const activityInterval = setInterval(() => {
-      const currentSessionId = localStorage.getItem('sessionId');
-      if (currentSessionId && user) updateSessionActivity(currentSessionId);
-    }, 60000);
+    const UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
+    const activityInterval = setInterval(async () => {
+      const currentSessionId = localStorage.getItem('sessionId');
+      if (!currentSessionId || !user) return;
+
+      try {
+        // First validate without auto-update
+        const validation = await validateSession(currentSessionId);
+        if (validation.valid) {
+          // Only update if near expiry or last update was > 5 min ago
+          await updateSessionActivity(currentSessionId);
+        }
+      } catch (error) {
+        if (error.code !== 'resource-exhausted') {
+          console.error('Session activity error:', error);
+        }
+      }
+    }, UPDATE_INTERVAL);
+
+    // User activity listener – debounced
     const handleActivity = () => {
       const currentSessionId = localStorage.getItem('sessionId');
-      if (currentSessionId) updateSessionActivity(currentSessionId);
+      if (!currentSessionId) return;
+
+      const lastUpdate = localStorage.getItem('lastActivityUpdate');
+      const now = Date.now();
+
+      if (!lastUpdate || now - parseInt(lastUpdate) > UPDATE_INTERVAL) {
+        updateSessionActivity(currentSessionId).catch(err => {
+          if (err.code !== 'resource-exhausted') console.error(err);
+        });
+        localStorage.setItem('lastActivityUpdate', now.toString());
+      }
     };
 
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('keypress', handleActivity);
+    window.addEventListener('click', handleActivity);
 
     return () => {
       clearInterval(activityInterval);
       window.removeEventListener('mousemove', handleActivity);
       window.removeEventListener('keypress', handleActivity);
+      window.removeEventListener('click', handleActivity);
     };
-  }, [user]);
+  }, [user]); // Only re-run if user changes
 
   const value = {
     user,
