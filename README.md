@@ -619,7 +619,7 @@ MIT License - feel free to use for educational/commercial purposes
 For issues or questions:
 - 📧 Email: kimryannabo@gmail.com
 - 🐛 GitHub Issues: [github.com/Academic-Clearance/issues](https://github.com)
-- 📖 Documentation: [docs.example.com](https://example.com)
+- 📖 Documentation: [https://github.com/Ryannabo/Academic-Clearance/blob/12th-trial/README.md](https://github.com/Ryannabo/Academic-Clearance/blob/12th-trial/README.md)
 
 ---
 
