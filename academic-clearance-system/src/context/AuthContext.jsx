@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }) => {
         });
         console.log('✅ Auto-created missing user document for:', firebaseUser.uid);
       }
-      
+
       let role = 'student';
       if (email === 'admin@mail.com') role = 'admin'; // your admin email
 
@@ -241,6 +241,20 @@ export const AuthProvider = ({ children }) => {
         createdAt: new Date().toISOString(),
         twoFactorEnabled: false
       });
+
+      if (userData.role === 'student') {
+        await setDoc(doc(db, 'students', firebaseUser.uid), {
+          name: userData.name,
+          email: firebaseUser.email,
+          studentId: userData.studentId,
+          course: userData.course,
+          yearLevel: userData.yearLevel,
+          semester: userData.semester,
+          section: userData.section,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
 
       const sessionResult = await createSession(
         firebaseUser.uid,

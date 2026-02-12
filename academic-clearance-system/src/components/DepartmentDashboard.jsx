@@ -252,10 +252,10 @@ export default function DepartmentDashboard() {
       const reqDocRef = doc(db, 'clearance_requirements', departmentId, 'students', studentId);
       await updateDoc(reqDocRef, {
         status: 'approved',
-        approvedBy: user.uid,
-        approvedAt: new Date().toISOString(),
-        rejectionReason: null,
-        missingRequirements: null
+        approvedByName: user.name,           // ✅ store the FULL NAME
+        approvedBy: user.name,              // ✅ backup (if you still use legacy)
+        approvedByEmail: user.email,       // ✅ optional, but not shown directly
+        approvedAt: new Date().toISOString()
       });
 
       await notifyStudentStatusChange(studentId, departmentId, 'approved');
@@ -404,8 +404,8 @@ export default function DepartmentDashboard() {
                 setSelectedItems(new Set());
               }}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${bulkActionMode
-                  ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
             >
               {bulkActionMode ? '✓ Bulk Mode Active' : 'Enable Bulk Actions'}
@@ -581,10 +581,10 @@ export default function DepartmentDashboard() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{req.files?.length || 0}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${req.status === 'approved'
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                            : req.status === 'rejected'
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                          : req.status === 'rejected'
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400'
                           }`}>
                           {req.status || 'pending'}
                         </span>
@@ -653,7 +653,7 @@ export default function DepartmentDashboard() {
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
                   <p className={`font-medium ${selectedStudent.status === 'approved' ? 'text-green-600 dark:text-green-400' :
-                      selectedStudent.status === 'rejected' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                    selectedStudent.status === 'rejected' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
                     }`}>
                     {selectedStudent.status?.toUpperCase() || 'PENDING'}
                   </p>
