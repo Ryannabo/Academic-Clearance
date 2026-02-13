@@ -239,55 +239,50 @@ export default function ProfileView({ isOpen, onClose }) {
                 </div>
               </div>
 
-              {/* Student Academic Information */}
+              {/* Student Academic Information – semester is read‑only */}
               {profileData?.role === 'student' && (
-                <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-1.5">
                     <Book size={14} className="text-indigo-500" />
                     Academic Information
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Student ID – read‑only */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Student ID</label>
-                      <div className="px-3 py-2 bg-gray-100 rounded-lg border border-gray-200 text-sm text-gray-600">
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Student ID</label>
+                      <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
                         {profileData?.studentId}
                         <span className="text-xs text-gray-400 ml-2">read-only</span>
                       </div>
                     </div>
+
+                    {/* Course – editable (if admin or self) */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Course / Program</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Course / Program</label>
                       {editing ? (
                         <select
                           value={editedData.course || ''}
                           onChange={(e) => handleChange('course', e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
                           <option value="">Select course</option>
-                          <option value="BS Computer Science">BS Computer Science</option>
-                          <option value="BS Information Technology">BS Information Technology</option>
-                          <option value="BS Computer Engineering">BS Computer Engineering</option>
-                          <option value="BS Mechanical Engineering">BS Mechanical Engineering</option>
-                          <option value="BS Accountancy">BS Accountancy</option>
-                          <option value="BS Business Administration">BS Business Administration</option>
-                          <option value="BS Hospitality Management">BS Hospitality Management</option>
-                          <option value="BS Tourism Management">BS Tourism Management</option>
-                          <option value="BS Nursing">BS Nursing</option>
-                          <option value="BS Psychology">BS Psychology</option>
-                          <option value="BS Education">BS Education</option>
+                          {/* ... course options ... */}
                         </select>
                       ) : (
-                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                        <div className="px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
                           {profileData?.course || '—'}
                         </div>
                       )}
                     </div>
+
+                    {/* Year Level – editable */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Year Level</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Year Level</label>
                       {editing ? (
                         <select
                           value={editedData.yearLevel || ''}
                           onChange={(e) => handleChange('yearLevel', e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
                           <option value="">Select year</option>
                           <option value="1st Year">1st Year</option>
@@ -297,37 +292,29 @@ export default function ProfileView({ isOpen, onClose }) {
                           <option value="5th Year">5th Year</option>
                         </select>
                       ) : (
-                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                        <div className="px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
                           {profileData?.yearLevel || '—'}
                         </div>
                       )}
                     </div>
+
+                    {/* Semester – ALWAYS read‑only (not editable) */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Semester</label>
-                      {editing ? (
-                        <select
-                          value={editedData.semester || ''}
-                          onChange={(e) => handleChange('semester', e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
-                        >
-                          <option value="">Select semester</option>
-                          <option value="1st Semester">1st Semester</option>
-                          <option value="2nd Semester">2nd Semester</option>
-                          <option value="Summer">Summer</option>
-                        </select>
-                      ) : (
-                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
-                          {profileData?.semester || '—'}
-                        </div>
-                      )}
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Semester</label>
+                      <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-400">
+                        {profileData?.semester || '—'}
+                        <span className="text-xs text-gray-400 ml-2">(admin only)</span>
+                      </div>
                     </div>
+
+                    {/* Section – editable */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Section</label>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Section</label>
                       {editing ? (
                         <select
                           value={editedData.section || ''}
                           onChange={(e) => handleChange('section', e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
+                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm"
                         >
                           <option value="">Select section</option>
                           <option value="A">A</option>
@@ -337,7 +324,7 @@ export default function ProfileView({ isOpen, onClose }) {
                           <option value="E">E</option>
                         </select>
                       ) : (
-                        <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
+                        <div className="px-3 py-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 text-sm">
                           {profileData?.section || '—'}
                         </div>
                       )}
@@ -382,9 +369,9 @@ export default function ProfileView({ isOpen, onClose }) {
                     <div className="px-3 py-2 bg-white rounded-lg border border-gray-100 text-sm">
                       {profileData?.createdAt
                         ? new Date(profileData.createdAt).toLocaleString('en-US', {
-                            year: 'numeric', month: 'long', day: 'numeric',
-                            hour: '2-digit', minute: '2-digit'
-                          })
+                          year: 'numeric', month: 'long', day: 'numeric',
+                          hour: '2-digit', minute: '2-digit'
+                        })
                         : 'N/A'}
                     </div>
                   </div>

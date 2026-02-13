@@ -1,10 +1,13 @@
-// src/components/Login.jsx – COMPLETE, MODAL INSIDE
+// src/components/Login.jsx – COMPLETE with Password Toggle
 import React, { useState, useEffect } from 'react';
-import { FileText, Shield, Mail, AlertCircle } from 'lucide-react';
+import {
+  FileText, Shield, Mail, AlertCircle,
+  Eye, EyeOff  // ✅ added eye icons for password toggle
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import DarkModeToggle from './DarkModeToggle';
-import TwoFactorModal from './TwoFactorModal'; // ✅ Import modal
+import TwoFactorModal from './TwoFactorModal';
 import { collection, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -37,7 +40,7 @@ export default function Login() {
     pendingUser,
     handle2FAVerified,
     is2FAPending,
-    user // not used directly, but kept
+    user
   } = useAuth();
 
   const { darkMode } = useTheme();
@@ -45,7 +48,7 @@ export default function Login() {
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [formData, setFormData] = useState({
     email: '', password: '', role: 'student', name: '', studentId: '',
-    course: '', yearLevel: '', semester: '', section: '', departmentToken: ''
+    course: '', yearLevel: '', section: '', departmentToken: ''
   });
   const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,11 @@ export default function Login() {
   const [pendingSignupData, setPendingSignupData] = useState(null);
   const [emailError, setEmailError] = useState('');
 
+  // ✅ Password visibility toggles
+  const [showPassword, setShowPassword] = useState(false);
+  // (Confirm password not used – kept for future extension)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   useEffect(() => {
     if (otpTimer > 0) {
       const timer = setTimeout(() => setOtpTimer(otpTimer - 1), 1000);
@@ -65,24 +73,21 @@ export default function Login() {
 
   // 🚫 COMPLETELY REMOVE SCROLLBARS ON LOGIN PAGE
   useEffect(() => {
-    // Save original overflow values
     const originalHtmlOverflow = document.documentElement.style.overflow;
     const originalBodyOverflow = document.body.style.overflow;
     const originalRootOverflow = document.getElementById('root')?.style.overflow;
 
-    // Hide scrollbars
     document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
     const root = document.getElementById('root');
     if (root) root.style.overflow = 'hidden';
 
-    // Restore on unmount
     return () => {
       document.documentElement.style.overflow = originalHtmlOverflow;
       document.body.style.overflow = originalBodyOverflow;
       if (root) root.style.overflow = originalRootOverflow || '';
     };
-  }, []); // Empty deps = runs once on mount
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -143,11 +148,9 @@ export default function Login() {
   const sendSignupOTPEmail = async (email, otp, userName) => {
     try {
       const emailjs = await import('@emailjs/browser');
-
-      // ✅ Use hardcoded credentials that you know work (from Twofactorauth.js)
-      const serviceId = 'service_wqfpk9k';        // Your EmailJS service ID
-      const templateId = 'template_npgf824';      // Your EmailJS template ID (can be same or different)
-      const publicKey = 'vBQxZ_dv3-mZzSw8M';      // Your EmailJS public key
+      const serviceId = 'service_wqfpk9k';
+      const templateId = 'template_npgf824';
+      const publicKey = 'vBQxZ_dv3-mZzSw8M';
 
       const templateParams = {
         to_email: email,
@@ -170,7 +173,6 @@ export default function Login() {
       return { success: true };
     } catch (error) {
       console.error('❌ Failed to send signup OTP:', error);
-      // Provide detailed error for debugging
       let errorMessage = error.message || 'Unknown error';
       if (error.text) errorMessage = error.text;
       return { success: false, error: errorMessage };
@@ -192,7 +194,7 @@ export default function Login() {
         tokenId = verification.tokenId;
       }
       if (formData.role === 'student') {
-        if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.semester || !formData.section) {
+        if (!formData.studentId || !formData.course || !formData.yearLevel || !formData.section) {
           alert('Please fill in all student information including section');
           setLoading(false); return;
         }
@@ -210,7 +212,6 @@ export default function Login() {
         userData.studentId = formData.studentId;
         userData.course = formData.course;
         userData.yearLevel = formData.yearLevel;
-        userData.semester = formData.semester;
         userData.section = formData.section;
       } else {
         userData.department = formData.role;
@@ -246,7 +247,7 @@ export default function Login() {
         alert('✅ Account created successfully! You can now login.');
         setShowOTPVerification(false);
         setIsSignup(false);
-        setFormData({ email: '', password: '', role: 'student', name: '', studentId: '', course: '', yearLevel: '', semester: '', section: '', departmentToken: '' });
+        setFormData({ email: '', password: '', role: 'student', name: '', studentId: '', course: '', yearLevel: '', section: '', departmentToken: '' });
         setOtpCode(''); setSignupOTP(''); setPendingSignupData(null);
       } else {
         alert(`❌ Failed to create account: ${result.error || 'Unknown error'}`);
@@ -281,7 +282,6 @@ export default function Login() {
       if (!result.success) {
         alert('Login failed: ' + (result.error || 'Unknown error'));
       }
-      // If success: listener handles 2FA or redirect – no alert
     } catch (err) {
       console.error('Login error:', err);
       alert('Login failed: ' + err.message);
@@ -365,10 +365,9 @@ export default function Login() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-indigo-950 dark:to-gray-900 flex items-center justify-center p-4 overflow-hidden transition-colors duration-300">
         <div className="absolute top-4 right-4"><DarkModeToggle /></div>
         <div className={`
-        bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 w-full transition-colors duration-300
-        ${isSignup ? 'max-w-2xl' : 'max-w-md'}
-      `}>
-          {/* ... all your existing form JSX ... (unchanged) */}
+          bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 w-full transition-colors duration-300
+          ${isSignup ? 'max-w-2xl' : 'max-w-md'}
+        `}>
           <div className="text-center mb-8">
             <div className="bg-indigo-600 dark:bg-indigo-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <FileText className="text-white" size={32} />
@@ -404,6 +403,7 @@ export default function Login() {
 
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4">
+              {/* Email field */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email</label>
                 <input
@@ -412,13 +412,28 @@ export default function Login() {
                   placeholder="Enter your email" required
                 />
               </div>
+
+              {/* ✅ Password field with toggle (Login & Signup) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-                <input
-                  type="password" name="password" value={formData.password} onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
-                  placeholder="Enter your password" required
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
+                    placeholder={isSignup ? 'Create a password' : 'Enter your password'}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -465,7 +480,7 @@ export default function Login() {
                         </select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Year Level</label>
                         <select name="yearLevel" value={formData.yearLevel} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent" required>
@@ -475,15 +490,6 @@ export default function Login() {
                           <option value="3rd Year">3rd Year</option>
                           <option value="4th Year">4th Year</option>
                           <option value="5th Year">5th Year</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Semester</label>
-                        <select name="semester" value={formData.semester} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent" required>
-                          <option value="">Select Semester</option>
-                          <option value="1st Semester">1st Semester</option>
-                          <option value="2nd Semester">2nd Semester</option>
-                          <option value="Summer">Summer</option>
                         </select>
                       </div>
                       <div>
@@ -548,11 +554,11 @@ export default function Login() {
         </div>
       </div>
 
-      {/* ✅ 2FA MODAL – RIGHT HERE, PART OF LOGIN COMPONENT */}
+      {/* ✅ 2FA MODAL */}
       <TwoFactorModal
         isOpen={show2FAModal}
         onClose={() => setShow2FAModal(false)}
-        onVerified={handle2FAVerified}   // ✅ receives (trustDevice)
+        onVerified={handle2FAVerified}
         userEmail={pendingUser?.email}
         userId={pendingUser?.uid}
         userName={pendingUser?.name}

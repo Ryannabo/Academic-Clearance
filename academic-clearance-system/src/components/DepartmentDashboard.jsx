@@ -1,4 +1,4 @@
-// src/components/DepartmentDashboard.jsx (COMPLETE - WITH DARK MODE)
+// src/components/DepartmentDashboard.jsx – FULLY RESPONSIVE (LOGIC UNCHANGED)
 import React, { useState, useEffect } from 'react';
 import {
   CheckCircle, Clock, User, Bell, Eye, X, FileText, Download,
@@ -252,9 +252,9 @@ export default function DepartmentDashboard() {
       const reqDocRef = doc(db, 'clearance_requirements', departmentId, 'students', studentId);
       await updateDoc(reqDocRef, {
         status: 'approved',
-        approvedByName: user.name,           // ✅ store the FULL NAME
-        approvedBy: user.name,              // ✅ backup (if you still use legacy)
-        approvedByEmail: user.email,       // ✅ optional, but not shown directly
+        approvedByName: user.name,
+        approvedBy: user.name,
+        approvedByEmail: user.email,
         approvedAt: new Date().toISOString()
       });
 
@@ -330,94 +330,117 @@ export default function DepartmentDashboard() {
     );
   }
 
+  // --------------------- FULLY RESPONSIVE UI (LOGIC UNCHANGED) ---------------------
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      {/* Navbar */}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 overflow-x-hidden">
+      
+      {/* ✅ RESPONSIVE NAVBAR */}
       <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{departmentName} Dashboard</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Clearance Management</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          
+          {/* Left – Title */}
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg">
+              <CheckCircle className="text-indigo-600 dark:text-indigo-400" size={24} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                {departmentName} Dashboard
+              </h1>
+              <p className="text-xs text-gray-600 dark:text-gray-400 hidden sm:block">
+                Clearance Management
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
+
+          {/* Right – User controls – tightly packed */}
+          <div className="flex items-center justify-end gap-1 sm:gap-2">
             <DarkModeToggle />
             <NotificationPanel />
-            <User size={20} className="text-gray-600 dark:text-gray-400" />
-            <button
-              onClick={logout}
-              className="bg-red-600 dark:bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
-            >
-              Logout
-            </button>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <User size={20} className="text-gray-600 dark:text-gray-400" />
+              <button
+                onClick={logout}
+                className="bg-red-600 dark:bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-xs sm:text-sm hover:bg-red-700 dark:hover:bg-red-600 transition-colors whitespace-nowrap"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        
+        {/* ✅ RESPONSIVE STATS CARDS */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Total Students</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.total}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Total Students</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.total}</p>
               </div>
-              <User className="text-indigo-600 dark:text-indigo-400" size={40} />
+              <User className="text-indigo-600 dark:text-indigo-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Pending</p>
-                <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.pending}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Pending</p>
+                <p className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.pending}</p>
               </div>
-              <Clock className="text-amber-600 dark:text-amber-400" size={40} />
+              <Clock className="text-amber-600 dark:text-amber-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Approved</p>
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.approved}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Approved</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">{stats.approved}</p>
               </div>
-              <CheckCircle className="text-green-600 dark:text-green-400" size={40} />
+              <CheckCircle className="text-green-600 dark:text-green-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Rejected</p>
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.rejected}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Rejected</p>
+                <p className="text-2xl sm:text-3xl font-bold text-red-600 dark:text-red-400">{stats.rejected}</p>
               </div>
-              <X className="text-red-600 dark:text-red-400" size={40} />
+              <X className="text-red-600 dark:text-red-400" size={32} />
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Student Clearance Requests</h2>
-
+        {/* Main Content Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
+          
+          {/* Header + Bulk Toggle */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+              Student Clearance Requests
+            </h2>
             <button
               onClick={() => {
                 setBulkActionMode(!bulkActionMode);
                 setSelectedItems(new Set());
               }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${bulkActionMode
-                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                }`}
+              className={`w-full sm:w-auto px-4 py-2 rounded-lg font-medium transition-colors text-sm sm:text-base ${
+                bulkActionMode
+                  ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+              }`}
             >
               {bulkActionMode ? '✓ Bulk Mode Active' : 'Enable Bulk Actions'}
             </button>
           </div>
 
-          {/* Bulk Action Bar */}
+          {/* ✅ RESPONSIVE BULK ACTION BAR */}
           {bulkActionMode && (
             <div className="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 rounded-lg transition-colors duration-300">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-indigo-900 dark:text-indigo-300">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-semibold text-indigo-900 dark:text-indigo-300 text-sm sm:text-base">
                     {selectedItems.size} selected
                   </span>
                   <button
@@ -429,27 +452,28 @@ export default function DepartmentDashboard() {
                 </div>
 
                 {selectedItems.size > 0 && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     <button
                       onClick={bulkApprove}
                       disabled={bulkProcessing}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 text-sm font-medium transition-colors"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 disabled:opacity-50 text-sm font-medium transition-colors"
                     >
                       <CheckCircle size={16} />
-                      Approve Selected
+                      <span className="sm:hidden">Approve</span>
+                      <span className="hidden sm:inline">Approve Selected</span>
                     </button>
                     <button
                       onClick={bulkReject}
                       disabled={bulkProcessing}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 text-sm font-medium transition-colors"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 text-sm font-medium transition-colors"
                     >
                       <XCircle size={16} />
-                      Reject Selected
+                      <span className="sm:hidden">Reject</span>
+                      <span className="hidden sm:inline">Reject Selected</span>
                     </button>
                   </div>
                 )}
               </div>
-
               {bulkProcessing && (
                 <div className="mt-3 flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-700 dark:border-indigo-400"></div>
@@ -459,26 +483,27 @@ export default function DepartmentDashboard() {
             </div>
           )}
 
-          {/* Search and Filter */}
+          {/* ✅ RESPONSIVE SEARCH & FILTERS */}
           <div className="space-y-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                 <input
                   type="text"
-                  placeholder="Search by name, ID, or course..."
+                  placeholder="Search name, ID, course..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
                 />
               </div>
-
+              {/* Status Filter */}
               <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
@@ -486,12 +511,12 @@ export default function DepartmentDashboard() {
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
-
+              {/* Course Filter */}
               <div>
                 <select
                   value={filterCourse}
                   onChange={(e) => setFilterCourse(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
                 >
                   <option value="all">All Courses</option>
                   {availableCourses.map(course => (
@@ -499,12 +524,12 @@ export default function DepartmentDashboard() {
                   ))}
                 </select>
               </div>
-
+              {/* Year Level Filter */}
               <div>
                 <select
                   value={filterYearLevel}
                   onChange={(e) => setFilterYearLevel(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors duration-300"
                 >
                   <option value="all">All Year Levels</option>
                   {availableYearLevels.map(year => (
@@ -515,10 +540,10 @@ export default function DepartmentDashboard() {
             </div>
           </div>
 
-          {/* Table */}
+          {/* ✅ RESPONSIVE TABLE */}
           {filteredRequirements.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                 {requirements.length === 0
                   ? 'No clearance requests yet'
                   : filterStatus === 'pending'
@@ -527,134 +552,144 @@ export default function DepartmentDashboard() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700 transition-colors duration-300">
-                  <tr>
-                    {bulkActionMode && (
-                      <th className="px-6 py-3 text-left">
-                        <button onClick={toggleSelectAll}>
-                          {selectedItems.size === filteredRequirements.length ? (
-                            <CheckSquare className="text-indigo-600 dark:text-indigo-400" size={20} />
-                          ) : (
-                            <Square className="text-gray-400 dark:text-gray-500" size={20} />
-                          )}
-                        </button>
-                      </th>
-                    )}
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Year/Sem</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Submitted</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Files</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredRequirements.map(req => (
-                    <tr key={req.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700 transition-colors duration-300">
+                    <tr>
                       {bulkActionMode && (
-                        <td className="px-6 py-4">
-                          <button onClick={() => toggleSelectItem(req.id)}>
-                            {selectedItems.has(req.id) ? (
+                        <th className="px-3 sm:px-6 py-3 text-left">
+                          <button onClick={toggleSelectAll} className="p-1">
+                            {selectedItems.size === filteredRequirements.length ? (
                               <CheckSquare className="text-indigo-600 dark:text-indigo-400" size={20} />
                             ) : (
                               <Square className="text-gray-400 dark:text-gray-500" size={20} />
                             )}
                           </button>
-                        </td>
+                        </th>
                       )}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{req.studentName || 'N/A'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{req.studentIdNumber || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{req.course || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs">
-                        <div className="text-gray-900 dark:text-gray-100">{req.yearLevel}</div>
-                        <div className="text-gray-500 dark:text-gray-400">{req.semester}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                        {formatDate(req.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{req.files?.length || 0}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${req.status === 'approved'
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                          : req.status === 'rejected'
-                            ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
-                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400'
-                          }`}>
-                          {req.status || 'pending'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => viewStudent(req)}
-                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300"
-                        >
-                          <Eye size={18} className="inline mr-1" /> View
-                        </button>
-                      </td>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden sm:table-cell">ID</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">Course</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden lg:table-cell">Year/Sem</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden xl:table-cell">Submitted</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Files</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredRequirements.map(req => (
+                      <tr key={req.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        {bulkActionMode && (
+                          <td className="px-3 sm:px-6 py-4">
+                            <button onClick={() => toggleSelectItem(req.id)} className="p-1">
+                              {selectedItems.has(req.id) ? (
+                                <CheckSquare className="text-indigo-600 dark:text-indigo-400" size={20} />
+                              ) : (
+                                <Square className="text-gray-400 dark:text-gray-500" size={20} />
+                              )}
+                            </button>
+                          </td>
+                        )}
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">{req.studentName || 'N/A'}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">{req.studentIdNumber || 'N/A'}</div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 hidden sm:table-cell">{req.studentIdNumber || 'N/A'}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 hidden md:table-cell">{req.course || 'N/A'}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs hidden lg:table-cell">
+                          <div className="text-gray-900 dark:text-gray-100">{req.yearLevel}</div>
+                          <div className="text-gray-500 dark:text-gray-400">{req.semester}</div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 hidden xl:table-cell">
+                          {formatDate(req.createdAt)}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{req.files?.length || 0}</td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 sm:px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            req.status === 'approved'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                              : req.status === 'rejected'
+                                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400'
+                          }`}>
+                            {req.status || 'pending'}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => viewStudent(req)}
+                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 inline-flex items-center gap-1"
+                          >
+                            <Eye size={18} />
+                            <span className="hidden sm:inline">View</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ===== STUDENT DETAILS MODAL ===== */}
+      {/* ✅ RESPONSIVE STUDENT DETAILS MODAL */}
       {selectedStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 transition-colors duration-300">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100">{selectedStudent.studentName || 'Student'}</h3>
-                <p className="text-gray-600 dark:text-gray-400">{selectedStudent.studentIdNumber || 'N/A'}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-3 sm:p-4 z-50 transition-opacity duration-300 overflow-x-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-sm sm:max-w-2xl lg:max-w-3xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 transition-colors duration-300 shadow-xl">
+            <div className="flex justify-between items-start mb-4 sm:mb-6">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
+                  {selectedStudent.studentName || 'Student'}
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 break-words">
+                  {selectedStudent.studentIdNumber || 'N/A'}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedStudent(null)}
-                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                className="flex-shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-1 -mt-1 -mr-1"
               >
                 <X size={24} />
               </button>
             </div>
 
-            {/* Student Info */}
+            {/* Student Info – responsive grid */}
             <div className="space-y-4 mb-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Course</p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{selectedStudent.course || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Course</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-words">{selectedStudent.course || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Year Level</p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{selectedStudent.yearLevel || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Year Level</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{selectedStudent.yearLevel || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Semester</p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{selectedStudent.semester || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Semester</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{selectedStudent.semester || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Section</p>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">{selectedStudent.section || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Section</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{selectedStudent.section || 'N/A'}</p>
+                </div>
+                <div className="xs:col-span-2">
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Email</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 break-words">{selectedStudent.email || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
-                  <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{selectedStudent.email || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Submitted Date</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100">{formatDate(selectedStudent.createdAt)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Submitted Date</p>
-                  <p className="font-medium text-sm text-gray-900 dark:text-gray-100">{formatDate(selectedStudent.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Status</p>
-                  <p className={`font-medium ${selectedStudent.status === 'approved' ? 'text-green-600 dark:text-green-400' :
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Status</p>
+                  <p className={`font-medium text-sm sm:text-base ${
+                    selectedStudent.status === 'approved' ? 'text-green-600 dark:text-green-400' :
                     selectedStudent.status === 'rejected' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
-                    }`}>
+                  }`}>
                     {selectedStudent.status?.toUpperCase() || 'PENDING'}
                   </p>
                 </div>
@@ -662,26 +697,26 @@ export default function DepartmentDashboard() {
 
               {/* Files Section */}
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-semibold">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                   Uploaded Files ({selectedStudent.files?.length || 0})
                 </p>
                 {selectedStudent.files && selectedStudent.files.length > 0 ? (
                   <div className="space-y-2">
                     {selectedStudent.files.map((file, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                        <div className="flex items-center gap-2 flex-1">
+                      <div key={idx} className="flex flex-col xs:flex-row xs:items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                           <FileText size={20} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium block truncate text-gray-800 dark:text-gray-200">{file.name}</span>
+                            <span className="text-xs sm:text-sm font-medium block truncate text-gray-800 dark:text-gray-200">{file.name}</span>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {file.type} • {(file.size / 1024).toFixed(1)}KB
                             </span>
                           </div>
                         </div>
-                        <div className="flex gap-2 ml-2">
+                        <div className="flex gap-2 self-end xs:self-center">
                           <button
                             onClick={() => previewFileHandler(file)}
-                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 text-sm px-3 py-1 border border-indigo-600 dark:border-indigo-500 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-1"
+                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 text-xs px-3 py-1.5 border border-indigo-600 dark:border-indigo-500 rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors flex items-center gap-1"
                           >
                             <Eye size={16} />
                             Preview
@@ -706,31 +741,31 @@ export default function DepartmentDashboard() {
 
               {/* Rejection Info */}
               {selectedStudent.status === 'rejected' && (
-                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3 transition-colors duration-300">
+                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4 transition-colors duration-300">
                   <p className="text-sm font-medium text-red-800 dark:text-red-400">Rejection Reason:</p>
-                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">{selectedStudent.rejectionReason || 'N/A'}</p>
+                  <p className="text-xs sm:text-sm text-red-700 dark:text-red-400 mt-1 break-words">{selectedStudent.rejectionReason || 'N/A'}</p>
                   {selectedStudent.missingRequirements && (
                     <>
                       <p className="text-sm font-medium text-red-800 dark:text-red-400 mt-2">Missing Requirements:</p>
-                      <p className="text-sm text-red-700 dark:text-red-400 mt-1">{selectedStudent.missingRequirements}</p>
+                      <p className="text-xs sm:text-sm text-red-700 dark:text-red-400 mt-1 break-words">{selectedStudent.missingRequirements}</p>
                     </>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons – responsive */}
             {selectedStudent.status === 'pending' && (
-              <div className="flex gap-3">
+              <div className="flex flex-col xs:flex-row gap-3">
                 <button
                   onClick={() => approveStudent(selectedStudent.id)}
-                  className="flex-1 bg-green-600 dark:bg-green-500 text-white py-3 rounded-lg font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+                  className="flex-1 bg-green-600 dark:bg-green-500 text-white py-2.5 sm:py-3 rounded-lg font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition-colors text-sm sm:text-base"
                 >
                   ✓ Approve Clearance
                 </button>
                 <button
                   onClick={() => rejectStudent(selectedStudent.id)}
-                  className="flex-1 bg-red-600 dark:bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+                  className="flex-1 bg-red-600 dark:bg-red-500 text-white py-2.5 sm:py-3 rounded-lg font-semibold hover:bg-red-700 dark:hover:bg-red-600 transition-colors text-sm sm:text-base"
                 >
                   ✗ Reject
                 </button>
@@ -740,8 +775,8 @@ export default function DepartmentDashboard() {
             {selectedStudent.status === 'approved' && (
               <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 text-center transition-colors duration-300">
                 <CheckCircle className="mx-auto mb-2 text-green-600 dark:text-green-400" size={32} />
-                <p className="text-green-800 dark:text-green-400 font-medium">Already Approved</p>
-                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                <p className="text-green-800 dark:text-green-400 font-medium text-sm sm:text-base">Already Approved</p>
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-400 mt-1">
                   Approved on {formatDate(selectedStudent.approvedAt)}
                 </p>
               </div>
@@ -750,8 +785,8 @@ export default function DepartmentDashboard() {
             {selectedStudent.status === 'rejected' && (
               <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center transition-colors duration-300">
                 <AlertCircle className="mx-auto mb-2 text-amber-600 dark:text-amber-400" size={32} />
-                <p className="text-amber-800 dark:text-amber-400 font-medium">Currently Rejected</p>
-                <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+                <p className="text-amber-800 dark:text-amber-400 font-medium text-sm sm:text-base">Currently Rejected</p>
+                <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400 mt-1">
                   Student can resubmit with correct requirements
                 </p>
               </div>
@@ -760,66 +795,66 @@ export default function DepartmentDashboard() {
         </div>
       )}
 
-      {/* ===== FILE PREVIEW MODAL ===== */}
+      {/* ✅ RESPONSIVE FILE PREVIEW MODAL */}
       {previewFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 dark:bg-opacity-95 flex items-center justify-center p-4 z-[60] transition-opacity duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col transition-colors duration-300">
+        <div className="fixed inset-0 bg-black bg-opacity-90 dark:bg-opacity-95 flex items-center justify-center p-2 sm:p-4 z-[60] transition-opacity duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-full sm:max-w-4xl lg:max-w-6xl w-full max-h-[98vh] sm:max-h-[95vh] overflow-hidden flex flex-col transition-colors duration-300 shadow-2xl">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-              <div className="flex items-center gap-3">
-                <FileText className="text-indigo-600 dark:text-indigo-400" size={24} />
-                <div>
-                  <h3 className="font-bold text-lg text-gray-800 dark:text-gray-100">{previewFile.name}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3 p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+              <div className="flex items-center gap-3 min-w-0">
+                <FileText className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" size={24} />
+                <div className="min-w-0">
+                  <h3 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-100 truncate">{previewFile.name}</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     {previewFile.type} • {(previewFile.size / 1024).toFixed(1)}KB
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end xs:self-center">
                 <button
                   onClick={() => downloadFile(previewFile)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+                  className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors text-xs sm:text-sm"
                 >
-                  <Download size={18} />
-                  Download
+                  <Download size={16} />
+                  <span className="hidden sm:inline">Download</span>
                 </button>
                 <button
                   onClick={() => setPreviewFile(null)}
                   className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} />
                 </button>
               </div>
             </div>
 
             {/* Preview Content */}
-            <div className="flex-1 overflow-auto p-4 bg-gray-100 dark:bg-gray-900">
+            <div className="flex-1 overflow-auto p-2 sm:p-4 bg-gray-100 dark:bg-gray-900">
               <div className="flex justify-center items-center min-h-full">
                 {previewFile.type.startsWith('image/') ? (
                   <img
                     src={previewFile.data}
                     alt={previewFile.name}
                     className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                    style={{ maxHeight: 'calc(95vh - 120px)' }}
+                    style={{ maxHeight: 'calc(98vh - 120px)' }}
                   />
                 ) : previewFile.type === 'application/pdf' ? (
                   <iframe
                     src={previewFile.data}
                     className="w-full rounded-lg shadow-2xl bg-white dark:bg-gray-800"
-                    style={{ height: 'calc(95vh - 120px)' }}
+                    style={{ height: 'calc(98vh - 120px)' }}
                     title={previewFile.name}
                   />
                 ) : (
-                  <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg p-8 shadow-lg transition-colors duration-300">
-                    <FileText size={64} className="mx-auto mb-4 text-gray-400 dark:text-gray-500" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-2 text-lg">Preview not available for this file type</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">{previewFile.type}</p>
+                  <div className="text-center py-8 sm:py-12 bg-white dark:bg-gray-800 rounded-lg p-6 sm:p-8 shadow-lg transition-colors duration-300 max-w-sm sm:max-w-md mx-auto">
+                    <FileText size={48} className="mx-auto mb-4 text-gray-400 dark:text-gray-500" />
+                    <p className="text-gray-600 dark:text-gray-400 mb-2 text-base sm:text-lg">Preview not available</p>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500 mb-6 break-words">{previewFile.type}</p>
                     <button
                       onClick={() => downloadFile(previewFile)}
-                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 inline-flex items-center gap-2 transition-colors"
+                      className="bg-indigo-600 dark:bg-indigo-500 text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 inline-flex items-center gap-2 transition-colors text-sm sm:text-base"
                     >
-                      <Download size={20} />
-                      Download File to View
+                      <Download size={18} />
+                      Download File
                     </button>
                   </div>
                 )}

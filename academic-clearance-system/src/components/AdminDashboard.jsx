@@ -1,9 +1,9 @@
-// src/components/AdminDashboard.jsx – COMPLETE with Student Status Tab (ADDED, NO OTHER CHANGES)
+// src/components/AdminDashboard.jsx – COMPLETE with Bulk Semester Update + Fixed Total Cleaner
 import React, { useState, useEffect } from 'react';
 import {
   Users, Activity, CheckCircle, Clock, AlertCircle, Key,
   Settings, FileText, Trash2, Plus, Edit2, Shield, History,
-  Database, Download, Upload, Search, X // ✅ added Search and X for student tab
+  Database, Download, Upload, Search, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import DarkModeToggle from './DarkModeToggle';
@@ -22,7 +22,7 @@ import {
   limit,
   setDoc,
   writeBatch,
-  getDoc // ✅ added getDoc (already used in total cleaner, but ensure it's imported)
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
@@ -77,23 +77,28 @@ export default function AdminDashboard() {
     'requirements_templates',
     'audit_logs',
     'sessions',
-    'student_ids'
+    'student_ids',
+    'clearance_requirements'
   ]);
 
   // Total Cleaner state
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [clearLoading, setClearLoading] = useState(false);
 
-  // 🆕 Quota timer state – used in Overview tab
+  // Quota timer state
   const [timeUntilReset, setTimeUntilReset] = useState('');
   const [quotaExceeded, setQuotaExceeded] = useState(false);
 
-  // 🆕🆕🆕 STUDENT STATUS STATE (ADDED – NEW TAB)
+  // STUDENT STATUS STATE
   const [studentClearances, setStudentClearances] = useState([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Audit Trail Function
+  // 🆕 BULK SEMESTER UPDATE STATE
+  const [bulkSemester, setBulkSemester] = useState('');
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+
+  // ========== AUDIT TRAIL FUNCTION ==========
   const logAuditEvent = async (action, details) => {
     try {
       await addDoc(collection(db, 'audit_logs'), {
@@ -111,10 +116,8 @@ export default function AdminDashboard() {
 
   // ========== QUOTA RESET COUNTDOWN TIMER ==========
   useEffect(() => {
-    // Check if we're getting quota errors
     const checkQuotaStatus = async () => {
       try {
-        // Try a tiny write – if it fails, quota is exceeded
         const testRef = doc(db, '_quota_test', 'test');
         await setDoc(testRef, { timestamp: new Date().toISOString() });
         await deleteDoc(testRef);
@@ -125,37 +128,22 @@ export default function AdminDashboard() {
         }
       }
     };
-
     checkQuotaStatus();
 
-    // Calculate time until next Pacific midnight
     const updateTimer = () => {
       const now = new Date();
-
-      // Pacific midnight is 07:00 UTC (PDT) or 08:00 UTC (PST)
       const resetTime = new Date();
-      resetTime.setUTCHours(8, 0, 0, 0); // Start with PST (UTC-8)
-
-      // Check if currently in PDT (March–November)
+      resetTime.setUTCHours(8, 0, 0, 0);
       const month = now.getUTCMonth();
-      const isDaylight = month >= 2 && month <= 10; // Rough DST range
-      if (isDaylight) {
-        resetTime.setUTCHours(7, 0, 0, 0); // PDT (UTC-7)
-      }
-
-      // If reset already passed today, add 1 day
-      if (resetTime < now) {
-        resetTime.setDate(resetTime.getDate() + 1);
-      }
-
+      const isDaylight = month >= 2 && month <= 10;
+      if (isDaylight) resetTime.setUTCHours(7, 0, 0, 0);
+      if (resetTime < now) resetTime.setDate(resetTime.getDate() + 1);
       const diffMs = resetTime - now;
       const hours = Math.floor(diffMs / (1000 * 60 * 60));
       const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-
       setTimeUntilReset(`${hours}h ${minutes}m ${seconds}s`);
     };
-
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
     return () => clearInterval(interval);
@@ -163,15 +151,12 @@ export default function AdminDashboard() {
 
   // ========== STATS & REAL-TIME SUBSCRIPTIONS ==========
   useEffect(() => {
-    // Fetch statistics
     const fetchStats = async () => {
       try {
         const studentsSnapshot = await getDocs(collection(db, 'students'));
         const totalStudents = studentsSnapshot.size;
-
         const clearancesSnapshot = await getDocs(collection(db, 'clearances'));
         const totalClearances = clearancesSnapshot.size;
-
         let pendingCount = 0;
         for (const dept of departments) {
           try {
@@ -182,11 +167,9 @@ export default function AdminDashboard() {
             console.warn(`Could not fetch requirements for ${dept.name}:`, deptError);
           }
         }
-
         const completedCount = clearancesSnapshot.docs.filter(
           doc => doc.data().status === 'completed'
         ).length;
-
         setStats({
           totalStudents,
           totalClearances,
@@ -198,53 +181,31 @@ export default function AdminDashboard() {
         console.error('Error fetching stats:', error);
       }
     };
-
     fetchStats();
 
-    // Subscribe to tokens
     const tokensQuery = query(collection(db, 'department_tokens'));
     const unsubscribeTokens = onSnapshot(tokensQuery, (snapshot) => {
-      const tokensList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setTokens(tokensList);
+      setTokens(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Subscribe to requirements templates
     const requirementsQuery = query(collection(db, 'requirements_templates'));
     const unsubscribeReqs = onSnapshot(requirementsQuery, (snapshot) => {
-      const reqsList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setRequirements(reqsList);
+      setRequirements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Subscribe to audit logs (last 50)
     const auditQuery = query(
       collection(db, 'audit_logs'),
       orderBy('timestamp', 'desc'),
       limit(50)
     );
     const unsubscribeAudit = onSnapshot(auditQuery, (snapshot) => {
-      const logs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setAuditLogs(logs);
+      setAuditLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Fetch users
     const fetchUsers = async () => {
       const usersSnapshot = await getDocs(collection(db, 'users'));
-      const usersList = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setUsers(usersList);
+      setUsers(usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     };
-
     fetchUsers();
 
     return () => {
@@ -254,11 +215,10 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  // ========== FETCH STUDENT CLEARANCES (FIXED – FALLBACK TO USERS) ==========
+  // ========== FETCH STUDENT CLEARANCES ==========
   const fetchStudentClearances = async () => {
     setLoadingStudents(true);
     try {
-      // 1. Try to get students from 'students' collection
       let students = [];
       try {
         const studentsSnapshot = await getDocs(collection(db, 'students'));
@@ -271,7 +231,6 @@ export default function AdminDashboard() {
         console.warn('Could not fetch from students collection:', error);
       }
 
-      // 2. If no students found, fallback to users with role 'student'
       if (students.length === 0) {
         console.log('⚠️ No students in students collection, falling back to users...');
         const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -290,18 +249,15 @@ export default function AdminDashboard() {
           }));
       }
 
-      // 3. Still no students? Show empty list
       if (students.length === 0) {
         setStudentClearances([]);
         setLoadingStudents(false);
         return;
       }
 
-      // 4. For each student, fetch clearance status from departments
       const studentData = await Promise.all(
         students.map(async (student) => {
           const deptStatuses = {};
-
           await Promise.all(
             departments.map(async (dept) => {
               try {
@@ -324,12 +280,10 @@ export default function AdminDashboard() {
               }
             })
           );
-
           const approved = Object.values(deptStatuses).filter(d => d.status === 'approved').length;
           const pending = Object.values(deptStatuses).filter(d => d.status === 'pending').length;
           const rejected = Object.values(deptStatuses).filter(d => d.status === 'rejected').length;
           const notSubmitted = Object.values(deptStatuses).filter(d => d.status === 'not_submitted').length;
-
           return {
             ...student,
             deptStatuses,
@@ -346,14 +300,12 @@ export default function AdminDashboard() {
     }
   };
 
-  // Trigger fetch when tab becomes active
   useEffect(() => {
     if (activeTab === 'studentStatus') {
       fetchStudentClearances();
     }
   }, [activeTab]);
 
-  // Filter students based on search term
   const filteredStudents = studentClearances.filter(student => {
     const term = searchTerm.toLowerCase();
     return (
@@ -364,6 +316,82 @@ export default function AdminDashboard() {
       student.email?.toLowerCase().includes(term)
     );
   });
+
+  // ========== 🆕 BULK SEMESTER UPDATE HANDLER ==========
+  const handleBulkSemesterUpdate = async () => {
+    if (!bulkSemester) {
+      alert('Please select a semester.');
+      return;
+    }
+
+    if (!confirm(`⚠️ This will set the semester to "${bulkSemester}" for ALL students.\n\nAre you sure?`)) {
+      return;
+    }
+
+    setBulkUpdating(true);
+
+    try {
+      // 1. Get all student documents
+      const studentsSnapshot = await getDocs(collection(db, 'students'));
+      const studentIds = studentsSnapshot.docs.map(doc => doc.id);
+
+      // 2. Get all user documents with role 'student'
+      const usersQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      const usersSnapshot = await getDocs(usersQuery);
+      const userIds = usersSnapshot.docs.map(doc => doc.id);
+
+      let updatedCount = 0;
+      const BATCH_SIZE = 200;
+      const DELAY_MS = 1500;
+
+      const processBatch = async (ids, collectionName) => {
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const batch = writeBatch(db);
+          const batchIds = ids.slice(i, i + BATCH_SIZE);
+
+          batchIds.forEach(id => {
+            const docRef = doc(db, collectionName, id);
+            batch.update(docRef, { semester: bulkSemester });
+          });
+
+          await batch.commit();
+          updatedCount += batchIds.length;
+
+          if (i + BATCH_SIZE < ids.length) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+          }
+        }
+      };
+
+      if (studentIds.length > 0) {
+        await processBatch(studentIds, 'students');
+      }
+
+      if (userIds.length > 0) {
+        await processBatch(userIds, 'users');
+      }
+
+      await logAuditEvent('BULK_SEMESTER_UPDATE', {
+        semester: bulkSemester,
+        studentsUpdated: studentIds.length,
+        usersUpdated: userIds.length,
+        timestamp: new Date().toISOString()
+      });
+
+      alert(`✅ Successfully updated semester to "${bulkSemester}" for ${studentIds.length} student records and ${userIds.length} user profiles.`);
+
+      if (activeTab === 'studentStatus') {
+        fetchStudentClearances();
+      }
+
+      setBulkSemester('');
+    } catch (error) {
+      console.error('Error updating semesters:', error);
+      alert('❌ Failed to update semesters: ' + error.message);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   // ========== BACKUP & RECOVERY HANDLERS ==========
   const handleExportBackup = async () => {
@@ -478,27 +506,37 @@ export default function AdminDashboard() {
     }
   };
 
-  // ========== TOTAL CLEANER – ULTRA THROTTLED ==========
+  // ========== FIXED TOTAL CLEANER – with fallback and error handling ==========
+  // ========== FIXED TOTAL CLEANER – supports clearance_requirements subcollections ==========
   const handleClearCollections = async () => {
-    if (deleteConfirmText !== 'DELETE') return;
+    if (deleteConfirmText !== 'DELETE') {
+      alert('❌ Please type "DELETE" to confirm.');
+      return;
+    }
     if (selectedCollections.length === 0) {
       alert('Please select at least one collection to clear.');
       return;
     }
+
     const userDoc = await getDoc(doc(db, 'users', user.uid));
     if (!userDoc.exists() || userDoc.data().role !== 'admin') {
       alert('❌ Admin verification failed. Cannot delete.');
       return;
     }
+
     const reallySure = window.confirm(
       `🔥 FINAL WARNING: You are about to delete ALL documents from:\n\n` +
       selectedCollections.join(', ') +
+      (selectedCollections.includes('clearance_requirements')
+        ? '\n\n⚠️ This includes ALL clearance_requirements (all departments, all students).'
+        : '') +
       `\n\n⚠️ Spark plan: 20,000 writes/deletes per day.\n` +
       `This operation is EXTREMELY SLOW (3s delay between batches of 20).\n` +
       `Large collections may take hours.\n\n` +
       `Do you have a backup ready?`
     );
     if (!reallySure) return;
+
     setClearLoading(true);
     try {
       let totalDeleted = 0;
@@ -506,52 +544,119 @@ export default function AdminDashboard() {
       const BATCH_SIZE = 20;
       const DELAY_MS = 3000;
       const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
       for (const collectionName of selectedCollections) {
+        console.log(`🔄 Clearing "${collectionName}"...`);
+
+        // --- SPECIAL CASE: clearance_requirements (subcollections under each department) ---
+        if (collectionName === 'clearance_requirements') {
+          for (const dept of departments) {
+            const subcollectionPath = `clearance_requirements/${dept.id}/students`;
+            try {
+              const subcollectionRef = collection(db, subcollectionPath);
+              const snapshot = await getDocs(subcollectionRef);
+              const docs = snapshot.docs;
+              if (docs.length === 0) {
+                console.log(`   No documents in ${subcollectionPath}`);
+                continue;
+              }
+
+              for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+                try {
+                  const batch = writeBatch(db);
+                  const batchDocs = docs.slice(i, i + BATCH_SIZE);
+                  batchDocs.forEach(doc => batch.delete(doc.ref));
+                  await batch.commit();
+                  totalDeleted += batchDocs.length;
+                  console.log(`   ✅ Batch deleted ${batchDocs.length} docs from ${subcollectionPath} (total ${totalDeleted})`);
+                } catch (batchError) {
+                  console.warn(`   ⚠️ Batch delete failed for ${subcollectionPath}, falling back...`, batchError);
+                  for (let j = i; j < Math.min(i + BATCH_SIZE, docs.length); j++) {
+                    try {
+                      await deleteDoc(docs[j].ref);
+                      totalDeleted++;
+                    } catch (singleError) {
+                      console.error(`     ❌ Failed to delete doc ${docs[j].id}:`, singleError);
+                      failedCollections.push(`${subcollectionPath}/${docs[j].id}`);
+                    }
+                    await sleep(100);
+                  }
+                }
+                if (i + BATCH_SIZE < docs.length) await sleep(DELAY_MS);
+              }
+            } catch (error) {
+              console.error(`❌ Failed to process ${subcollectionPath}:`, error);
+              if (error.code === 'permission-denied') {
+                alert(`❌ Permission denied for ${subcollectionPath}. Check Firestore rules.`);
+              }
+              failedCollections.push(subcollectionPath);
+            }
+          }
+          continue; // skip the top-level delete for clearance_requirements
+        }
+
+        // --- NORMAL CASE: top-level collection ---
         try {
-          console.log(`🔄 Clearing ${collectionName}...`);
           const snapshot = await getDocs(collection(db, collectionName));
           const docs = snapshot.docs;
-          if (docs.length === 0) continue;
+          if (docs.length === 0) {
+            console.log(`   Collection "${collectionName}" is empty.`);
+            continue;
+          }
+
           for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-            const batch = writeBatch(db);
-            const batchDocs = docs.slice(i, i + BATCH_SIZE);
-            batchDocs.forEach(doc => batch.delete(doc.ref));
-            await batch.commit();
-            totalDeleted += batchDocs.length;
-            console.log(`  ✅ Deleted ${totalDeleted} / ${docs.length} from ${collectionName}`);
+            try {
+              const batch = writeBatch(db);
+              const batchDocs = docs.slice(i, i + BATCH_SIZE);
+              batchDocs.forEach(doc => batch.delete(doc.ref));
+              await batch.commit();
+              totalDeleted += batchDocs.length;
+              console.log(`   ✅ Batch deleted ${batchDocs.length} docs from ${collectionName} (total ${totalDeleted})`);
+            } catch (batchError) {
+              console.warn(`   ⚠️ Batch delete failed for ${collectionName}, falling back...`, batchError);
+              for (let j = i; j < Math.min(i + BATCH_SIZE, docs.length); j++) {
+                try {
+                  await deleteDoc(docs[j].ref);
+                  totalDeleted++;
+                } catch (singleError) {
+                  console.error(`     ❌ Failed to delete doc ${docs[j].id}:`, singleError);
+                  failedCollections.push(`${collectionName}/${docs[j].id}`);
+                }
+                await sleep(100);
+              }
+            }
             if (i + BATCH_SIZE < docs.length) await sleep(DELAY_MS);
           }
         } catch (error) {
+          console.error(`❌ Failed to process collection "${collectionName}":`, error);
           if (error.code === 'resource-exhausted') {
-            alert(`❌ Quota exceeded! Stopped at ${totalDeleted} deletions.\nUpgrade to Blaze plan or wait 24h.`);
+            alert(`❌ Quota exceeded! Stopped at ${totalDeleted} deletions. Upgrade to Blaze or wait 24h.`);
             break;
           }
           if (error.code === 'permission-denied') {
-            console.warn(`⚠️ Permission denied for ${collectionName} – skipping.`);
-            failedCollections.push(collectionName);
-          } else {
-            console.error(`Failed to clear ${collectionName}:`, error);
-            failedCollections.push(collectionName);
+            alert(`❌ Permission denied for collection "${collectionName}". Check Firestore rules.`);
           }
+          failedCollections.push(collectionName);
         }
       }
+
       await logAuditEvent('TOTAL_CLEANER_EXECUTED', {
         collections: selectedCollections.filter(c => !failedCollections.includes(c)),
         deletedCount: totalDeleted,
         failedCollections
       });
-      alert(`✅ Cleared ${totalDeleted} documents.\n⚠️ Failed: ${failedCollections.join(', ') || 'none'}`);
+
+      alert(`✅ Cleared ${totalDeleted} documents.` + (failedCollections.length > 0 ? ` ⚠️ Failed: ${failedCollections.join(', ')}` : ''));
       setDeleteConfirmText('');
-      // Optionally refresh stats
-      // fetchStats();
     } catch (error) {
-      console.error('Clear error:', error);
-      alert('❌ Failed: ' + error.message);
+      console.error('🔥 Fatal cleaner error:', error);
+      alert('❌ Cleaner failed: ' + error.message);
     } finally {
       setClearLoading(false);
     }
   };
 
+  // ========== TOKEN MANAGEMENT ==========
   const generateToken = async () => {
     try {
       const token = Math.random().toString(36).substring(2, 15) +
@@ -594,6 +699,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // ========== REQUIREMENT MANAGEMENT ==========
   const saveRequirement = async () => {
     try {
       if (editingRequirement) {
@@ -658,6 +764,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // ========== UTILITY FUNCTIONS ==========
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = new Date(timestamp);
@@ -753,7 +860,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Tabs – 🆕 ADDED STUDENT STATUS TAB BUTTON */}
+        {/* Tabs */}
         <div className="flex gap-4 mb-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
@@ -795,7 +902,7 @@ export default function AdminDashboard() {
             <Users size={18} className="inline mr-2" />
             Users
           </button>
-          {/* 🆕 NEW STUDENT STATUS TAB */}
+          {/* STUDENT STATUS TAB */}
           <button
             onClick={() => setActiveTab('studentStatus')}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'studentStatus'
@@ -850,7 +957,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* ⏰ QUOTA RESET COUNTDOWN – ALWAYS VISIBLE */}
+            {/* Quota Reset Timer */}
             <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-3">
                 <Clock className="text-indigo-600 dark:text-indigo-400" size={28} />
@@ -1040,9 +1147,10 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ========== 🆕🆕🆕 STUDENT STATUS TAB (NEW) ========== */}
+        {/* ========== STUDENT STATUS TAB ========== */}
         {activeTab === 'studentStatus' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            {/* Header + Refresh */}
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Student Clearance Status</h2>
               <button
@@ -1053,6 +1161,45 @@ export default function AdminDashboard() {
                 <Activity size={18} />
                 {loadingStudents ? 'Refreshing...' : 'Refresh'}
               </button>
+            </div>
+
+            {/* BULK SEMESTER UPDATE CARD */}
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 text-lg">
+                📚 Bulk Semester Update
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Set the semester for ALL students at once. This will overwrite existing semester values in both student profiles and user records.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <select
+                  value={bulkSemester}
+                  onChange={(e) => setBulkSemester(e.target.value)}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 text-sm"
+                >
+                  <option value="">Select Semester</option>
+                  <option value="1st Semester">1st Semester</option>
+                  <option value="2nd Semester">2nd Semester</option>
+                  <option value="Summer">Summer</option>
+                </select>
+                <button
+                  onClick={handleBulkSemesterUpdate}
+                  disabled={!bulkSemester || bulkUpdating}
+                  className="w-full sm:w-auto bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                >
+                  {bulkUpdating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      Update All Students
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Search Bar */}
