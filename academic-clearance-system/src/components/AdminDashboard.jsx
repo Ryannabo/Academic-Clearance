@@ -505,8 +505,6 @@ export default function AdminDashboard() {
       event.target.value = '';
     }
   };
-
-  // ========== FIXED TOTAL CLEANER – with fallback and error handling ==========
   // ========== FIXED TOTAL CLEANER – supports clearance_requirements subcollections ==========
   const handleClearCollections = async () => {
     if (deleteConfirmText !== 'DELETE') {
@@ -782,25 +780,34 @@ export default function AdminDashboard() {
     return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
 
-  // ========== RENDER ==========
+  // --------------------- FULLY RESPONSIVE UI (ONLY UI CHANGES) ---------------------
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      {/* Navbar */}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 overflow-x-hidden">
+      
+      {/* ✅ RESPONSIVE NAVBAR – stacks on mobile, compact */}
       <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          
           <div className="flex items-center gap-3">
-            <Shield className="text-indigo-600 dark:text-indigo-400" size={32} />
-            <div>
-              <h1 className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">Admin Dashboard</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">System Management</p>
+            <Shield className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" size={28} />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-indigo-600 dark:text-indigo-400 truncate">
+                Admin Dashboard
+              </h1>
+              <p className="text-xs text-gray-600 dark:text-gray-400 hidden sm:block">
+                System Management
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 flex-wrap">
             <DarkModeToggle />
-            <span className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400 hidden md:inline">
+              {user?.email}
+            </span>
             <button
               onClick={logout}
-              className="bg-red-600 dark:bg-red-500 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
+              className="bg-red-600 dark:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs sm:text-sm hover:bg-red-700 dark:hover:bg-red-600 transition-colors whitespace-nowrap"
             >
               Logout
             </button>
@@ -808,255 +815,260 @@ export default function AdminDashboard() {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        
+        {/* ✅ RESPONSIVE STATS CARDS – responsive grid, smaller padding/icons on mobile */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 transition-colors duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Total Students</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.totalStudents}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Total Students</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.totalStudents}</p>
               </div>
-              <Users className="text-indigo-600 dark:text-indigo-400" size={40} />
+              <Users className="text-indigo-600 dark:text-indigo-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Departments</p>
-                <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.totalDepartments}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Departments</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-100">{stats.totalDepartments}</p>
               </div>
-              <Activity className="text-blue-600 dark:text-blue-400" size={40} />
+              <Activity className="text-blue-600 dark:text-blue-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Pending</p>
-                <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.pendingApprovals}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Pending</p>
+                <p className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400">{stats.pendingApprovals}</p>
               </div>
-              <Clock className="text-amber-600 dark:text-amber-400" size={40} />
+              <Clock className="text-amber-600 dark:text-amber-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Completed</p>
-                <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.completedClearances}</p>
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Completed</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-600 dark:text-green-400">{stats.completedClearances}</p>
               </div>
-              <CheckCircle className="text-green-600 dark:text-green-400" size={40} />
+              <CheckCircle className="text-green-600 dark:text-green-400" size={32} />
             </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">Active Tokens</p>
-                <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">Active Tokens</p>
+                <p className="text-2xl sm:text-3xl font-bold text-purple-600 dark:text-purple-400">
                   {tokens.filter(t => !t.used && new Date(t.expiresAt) > new Date()).length}
                 </p>
               </div>
-              <Key className="text-purple-600 dark:text-purple-400" size={40} />
+              <Key className="text-purple-600 dark:text-purple-400" size={32} />
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-4 mb-6 overflow-x-auto">
+        {/* ✅ RESPONSIVE TABS – scrollable on mobile, smaller gap/padding */}
+        <div className="flex gap-2 sm:gap-4 mb-6 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'overview'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'overview'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <Activity size={18} className="inline mr-2" />
+            <Activity size={16} className="inline mr-1 sm:mr-2" />
             Overview
           </button>
           <button
             onClick={() => setActiveTab('tokens')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'tokens'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'tokens'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <Key size={18} className="inline mr-2" />
+            <Key size={16} className="inline mr-1 sm:mr-2" />
             Access Tokens
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'requirements'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'requirements'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <FileText size={18} className="inline mr-2" />
+            <FileText size={16} className="inline mr-1 sm:mr-2" />
             Requirements
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'users'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'users'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <Users size={18} className="inline mr-2" />
+            <Users size={16} className="inline mr-1 sm:mr-2" />
             Users
           </button>
-          {/* STUDENT STATUS TAB */}
           <button
             onClick={() => setActiveTab('studentStatus')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'studentStatus'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'studentStatus'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <Users size={18} className="inline mr-2" />
+            <Users size={16} className="inline mr-1 sm:mr-2" />
             Student Status
           </button>
           <button
             onClick={() => setActiveTab('audit')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'audit'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'audit'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <History size={18} className="inline mr-2" />
+            <History size={16} className="inline mr-1 sm:mr-2" />
             Audit Trail
           </button>
           <button
             onClick={() => setActiveTab('backup')}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${activeTab === 'backup'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'backup'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
-            <Database size={18} className="inline mr-2" />
-            Backup & Recovery
+            <Database size={16} className="inline mr-1 sm:mr-2" />
+            Backup
           </button>
         </div>
 
         {/* ========== OVERVIEW TAB ========== */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {/* Main Overview Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">System Overview</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">System Overview</h2>
               <div className="space-y-4">
                 <div className="border-l-4 border-blue-500 dark:border-blue-400 pl-4 py-2">
-                  <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">System Health: Good</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">All services running normally</p>
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-100">System Health: Good</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">All services running normally</p>
                 </div>
                 <div className="border-l-4 border-green-500 dark:border-green-400 pl-4 py-2">
-                  <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">Database Status: Active</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Firestore connected successfully</p>
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-100">Database Status: Active</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Firestore connected successfully</p>
                 </div>
                 <div className="border-l-4 border-amber-500 dark:border-amber-400 pl-4 py-2">
-                  <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-100">Pending Reviews: {stats.pendingApprovals}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Clearances waiting for department approval</p>
+                  <h3 className="font-semibold text-base sm:text-lg text-gray-800 dark:text-gray-100">Pending Reviews: {stats.pendingApprovals}</h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Clearances waiting for department approval</p>
                 </div>
               </div>
             </div>
-
-            {/* Quota Reset Timer */}
-            <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-6">
+            <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-5 sm:p-6">
               <div className="flex items-center gap-3 mb-3">
-                <Clock className="text-indigo-600 dark:text-indigo-400" size={28} />
-                <h3 className="text-xl font-bold text-indigo-800 dark:text-indigo-300">⏳ Daily Quota Reset Timer</h3>
+                <Clock className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" size={24} />
+                <h3 className="text-lg sm:text-xl font-bold text-indigo-800 dark:text-indigo-300">⏳ Daily Quota Reset Timer</h3>
               </div>
-              <p className="text-sm text-indigo-700 dark:text-indigo-400 mb-4">
+              <p className="text-xs sm:text-sm text-indigo-700 dark:text-indigo-400 mb-4">
                 Firestore free tier resets daily at <strong>midnight Pacific Time</strong>.
-                Use this timer to plan your restore tests and large operations.
               </p>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-5 border border-indigo-200 dark:border-indigo-800">
-                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">⏱️ Time until next quota reset:</p>
-                <p className="text-3xl font-mono font-bold text-indigo-600 dark:text-indigo-400">{timeUntilReset}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-                  Resets daily at midnight Pacific Time (UTC-7/UTC-8).
-                  {quotaExceeded && (
-                    <span className="block mt-1 text-red-600 dark:text-red-400 font-semibold">
-                      ⚠️ Quota currently exceeded – you are blocked from writes until reset.
-                    </span>
-                  )}
-                </p>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-5 border border-indigo-200 dark:border-indigo-800">
+                <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">⏱️ Time until next quota reset:</p>
+                <p className="text-2xl sm:text-3xl font-mono font-bold text-indigo-600 dark:text-indigo-400">{timeUntilReset}</p>
+                {quotaExceeded && (
+                  <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 font-semibold mt-2">
+                    ⚠️ Quota currently exceeded – blocked from writes until reset.
+                  </p>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Tokens Tab */}
+        {/* ========== TOKENS TAB – responsive table ========== */}
         {activeTab === 'tokens' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Department Access Tokens</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Department Access Tokens</h2>
               <button
                 onClick={() => setShowTokenModal(true)}
-                className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center gap-2 transition-colors"
+                className="w-full sm:w-auto bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center justify-center gap-2 transition-colors text-sm sm:text-base"
               >
-                <Plus size={20} />
+                <Plus size={18} />
                 Generate Token
               </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700 transition-colors duration-300">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Token</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Department</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expires</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {tokens.map(token => {
-                    const isExpired = new Date(token.expiresAt) < new Date();
-                    const deptName = departments.find(d => d.id === token.department)?.name;
-                    const expiryDate = new Date(token.expiresAt);
-                    return (
-                      <tr key={token.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                        <td className="px-6 py-4 font-mono text-sm text-gray-900 dark:text-gray-100">{token.token}</td>
-                        <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{deptName}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{expiryDate.toLocaleDateString()}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">{expiryDate.toLocaleTimeString()}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${token.used
-                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                            : isExpired
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+            <div className="overflow-x-auto -mx-5 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-5 sm:px-0">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Token</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Department</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Expires</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {tokens.map(token => {
+                      const isExpired = new Date(token.expiresAt) < new Date();
+                      const deptName = departments.find(d => d.id === token.department)?.name;
+                      const expiryDate = new Date(token.expiresAt);
+                      return (
+                        <tr key={token.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-3 sm:px-6 py-4 font-mono text-xs sm:text-sm text-gray-900 dark:text-gray-100 truncate max-w-[120px] sm:max-w-none">
+                            {token.token}
+                          </td>
+                          <td className="px-3 sm:px-6 py-4 text-sm text-gray-900 dark:text-gray-100">{deptName}</td>
+                          <td className="px-3 sm:px-6 py-4 text-sm hidden sm:table-cell">
+                            <div className="text-gray-900 dark:text-gray-100">{expiryDate.toLocaleDateString()}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{expiryDate.toLocaleTimeString()}</div>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              token.used
+                                ? 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                                : isExpired
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                                  : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
                             }`}>
-                            {token.used ? 'Used' : isExpired ? 'Expired' : 'Active'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => deleteToken(token.id)}
-                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                              {token.used ? 'Used' : isExpired ? 'Expired' : 'Active'}
+                            </span>
+                          </td>
+                          <td className="px-3 sm:px-6 py-4">
+                            <button
+                              onClick={() => deleteToken(token.id)}
+                              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Requirements Tab */}
+        {/* ========== REQUIREMENTS TAB – responsive ========== */}
         {activeTab === 'requirements' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Requirements Management</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Requirements Management</h2>
               <button
                 onClick={() => setShowRequirementModal(true)}
-                className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center gap-2 transition-colors"
+                className="w-full sm:w-auto bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center justify-center gap-2 transition-colors text-sm sm:text-base"
               >
-                <Plus size={20} />
+                <Plus size={18} />
                 Add Requirement
               </button>
             </div>
@@ -1064,25 +1076,30 @@ export default function AdminDashboard() {
               {departments.map(dept => {
                 const deptReqs = requirements.filter(r => r.department === dept.id);
                 return (
-                  <div key={dept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-colors duration-300">
-                    <h3 className="font-bold text-lg mb-3 text-gray-800 dark:text-gray-100">{dept.name}</h3>
+                  <div key={dept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="font-bold text-base sm:text-lg mb-3 text-gray-800 dark:text-gray-100">{dept.name}</h3>
                     {deptReqs.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">No requirements set</p>
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 italic">No requirements set</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {deptReqs.map(req => (
-                          <div key={req.id} className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded transition-colors duration-300">
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-800 dark:text-gray-100">{req.title}</p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{req.description}</p>
-                              <span className={`text-xs px-2 py-1 rounded mt-1 inline-block ${req.required
-                                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
-                                }`}>
+                          <div key={req.id} className="flex items-start justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-800 dark:text-gray-100 text-sm sm:text-base break-words">
+                                {req.title}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 break-words">
+                                {req.description}
+                              </p>
+                              <span className={`inline-block px-2 py-1 mt-1 text-xs font-medium rounded-full ${
+                                req.required
+                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
+                              }`}>
                                 {req.required ? 'Required' : 'Optional'}
                               </span>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 ml-2 flex-shrink-0">
                               <button
                                 onClick={() => editRequirement(req)}
                                 className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
@@ -1107,68 +1124,78 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Users Tab */}
+        {/* ========== USERS TAB – responsive table ========== */}
         {activeTab === 'users' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Registered Users</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700 transition-colors duration-300">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Registered</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {users.map(u => (
-                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{u.name}</td>
-                      <td className="px-6 py-4 text-gray-900 dark:text-gray-100">{u.email}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${u.role === 'admin'
-                          ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400'
-                          : u.role === 'student'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
-                            : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
-                          }`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
-                      </td>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Registered Users</h2>
+            <div className="overflow-x-auto -mx-5 sm:mx-0">
+              <div className="inline-block min-w-full align-middle px-5 sm:px-0">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Email</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
+                      <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Registered</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {users.map(u => (
+                      <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">{u.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 sm:hidden">{u.email}</div>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 hidden sm:table-cell">
+                          {u.email}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            u.role === 'admin'
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400'
+                              : u.role === 'student'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
+                                : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'
+                          }`}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* ========== STUDENT STATUS TAB ========== */}
+        {/* ========== STUDENT STATUS TAB – already responsive, minor adjustments ========== */}
         {activeTab === 'studentStatus' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-            {/* Header + Refresh */}
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Student Clearance Status</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6">
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                Student Clearance Status
+              </h2>
               <button
                 onClick={fetchStudentClearances}
                 disabled={loadingStudents}
-                className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center gap-2 disabled:opacity-50"
+                className="w-full sm:w-auto bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
               >
                 <Activity size={18} />
                 {loadingStudents ? 'Refreshing...' : 'Refresh'}
               </button>
             </div>
 
-            {/* BULK SEMESTER UPDATE CARD */}
+            {/* Bulk Semester Update Card */}
             <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 text-lg">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 text-base sm:text-lg">
                 📚 Bulk Semester Update
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Set the semester for ALL students at once. This will overwrite existing semester values in both student profiles and user records.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
@@ -1212,7 +1239,7 @@ export default function AdminDashboard() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by name, ID, course, section..."
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
+                className="w-full pl-10 pr-10 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent"
               />
               {searchTerm && (
                 <button
@@ -1224,140 +1251,139 @@ export default function AdminDashboard() {
               )}
             </div>
 
-            {/* Student Count */}
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">
               Showing {filteredStudents.length} of {studentClearances.length} students
             </p>
 
-            {/* Student Table */}
             {loadingStudents ? (
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">ID</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Course/Year/Section</th>
-                      {departments.map(dept => (
-                        <th key={dept.id} className="px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={dept.name}>
-                          <span className="hidden sm:inline">{dept.name}</span>
-                          <span className="sm:hidden">{dept.name.charAt(0)}</span>
-                        </th>
-                      ))}
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Progress</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredStudents.length === 0 ? (
+              <div className="overflow-x-auto -mx-5 sm:mx-0">
+                <div className="inline-block min-w-full align-middle px-5 sm:px-0">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
-                        <td colSpan={10 + departments.length} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                          No students found.
-                        </td>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Student</th>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden xs:table-cell">ID</th>
+                        <th className="px-3 sm:px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Course/Year/Section</th>
+                        {departments.map(dept => (
+                          <th key={dept.id} className="px-1 sm:px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" title={dept.name}>
+                            <span className="hidden sm:inline">{dept.name}</span>
+                            <span className="sm:hidden">{dept.name.charAt(0)}</span>
+                          </th>
+                        ))}
+                        <th className="px-3 sm:px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Progress</th>
                       </tr>
-                    ) : (
-                      filteredStudents.map((student) => (
-                        <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900 dark:text-gray-100">{student.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{student.email}</div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-mono text-xs">
-                            {student.studentId || '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-gray-900 dark:text-gray-100 text-xs">{student.course || '—'}</div>
-                            <div className="text-gray-500 dark:text-gray-400 text-xs">
-                              {student.yearLevel || '—'} · {student.semester || '—'} · Sec {student.section || '—'}
-                            </div>
-                          </td>
-                          {departments.map(dept => {
-                            const status = student.deptStatuses?.[dept.id]?.status || 'not_submitted';
-                            let badgeColor = 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
-                            let badgeText = '○';
-                            if (status === 'approved') {
-                              badgeColor = 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400';
-                              badgeText = '✓';
-                            } else if (status === 'pending') {
-                              badgeColor = 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400';
-                              badgeText = '⏳';
-                            } else if (status === 'rejected') {
-                              badgeColor = 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400';
-                              badgeText = '✗';
-                            }
-                            return (
-                              <td key={dept.id} className="px-2 py-3 text-center">
-                                <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${badgeColor}`} title={status}>
-                                  <span className="hidden sm:inline">{status === 'not_submitted' ? '—' : status}</span>
-                                  <span className="sm:hidden">{badgeText}</span>
-                                </span>
-                              </td>
-                            );
-                          })}
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                {student.summary?.approved || 0}/{student.summary?.total || 7}
-                              </span>
-                              <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-600 dark:bg-indigo-500"
-                                  style={{ width: `${((student.summary?.approved || 0) / 7) * 100}%` }}
-                                ></div>
-                              </div>
-                            </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={10 + departments.length} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No students found.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredStudents.map((student) => (
+                          <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-3 sm:px-4 py-3">
+                              <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">{student.name}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 xs:hidden">{student.studentId || '—'}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 md:hidden">
+                                {student.course || '—'} · {student.yearLevel || '—'} · Sec {student.section || '—'}
+                              </div>
+                            </td>
+                            <td className="px-3 sm:px-4 py-3 text-gray-900 dark:text-gray-100 font-mono text-xs hidden xs:table-cell">
+                              {student.studentId || '—'}
+                            </td>
+                            <td className="px-3 sm:px-4 py-3 hidden md:table-cell">
+                              <div className="text-gray-900 dark:text-gray-100 text-xs">{student.course || '—'}</div>
+                              <div className="text-gray-500 dark:text-gray-400 text-xs">
+                                {student.yearLevel || '—'} · {student.semester || '—'} · Sec {student.section || '—'}
+                              </div>
+                            </td>
+                            {departments.map(dept => {
+                              const status = student.deptStatuses?.[dept.id]?.status || 'not_submitted';
+                              let badgeColor = 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
+                              let badgeText = '○';
+                              if (status === 'approved') {
+                                badgeColor = 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400';
+                                badgeText = '✓';
+                              } else if (status === 'pending') {
+                                badgeColor = 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400';
+                                badgeText = '⏳';
+                              } else if (status === 'rejected') {
+                                badgeColor = 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400';
+                                badgeText = '✗';
+                              }
+                              return (
+                                <td key={dept.id} className="px-1 sm:px-2 py-3 text-center">
+                                  <span className={`inline-block px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold ${badgeColor}`} title={status}>
+                                    <span className="hidden sm:inline">{status === 'not_submitted' ? '—' : status}</span>
+                                    <span className="sm:hidden">{badgeText}</span>
+                                  </span>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 sm:px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  {student.summary?.approved || 0}/{student.summary?.total || 7}
+                                </span>
+                                <div className="w-12 sm:w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-indigo-600 dark:bg-indigo-500"
+                                    style={{ width: `${((student.summary?.approved || 0) / 7) * 100}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Audit Trail Tab */}
+        {/* ========== AUDIT TRAIL TAB – responsive ========== */}
         {activeTab === 'audit' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 transition-colors duration-300">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Audit Trail</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Showing last 50 admin actions</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Audit Trail</h2>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">Showing last 50 admin actions</p>
             {auditLogs.length === 0 ? (
               <div className="text-center py-12">
-                <History className="mx-auto mb-4 text-gray-400 dark:text-gray-500" size={48} />
-                <p className="text-gray-500 dark:text-gray-400">No audit logs yet</p>
+                <History className="mx-auto mb-4 text-gray-400 dark:text-gray-500" size={40} />
+                <p className="text-sm text-gray-500 dark:text-gray-400">No audit logs yet</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {auditLogs.map(log => (
-                  <div key={log.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${getActionBadgeColor(log.action)}`}>
-                            {log.action.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatTimestamp(log.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-1">
-                          <strong>Performed by:</strong> {log.performedBy}
-                        </p>
-                        {log.details && (
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-2 bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                            {Object.entries(log.details).map(([key, value]) => (
-                              <div key={key}>
-                                <strong>{key}:</strong> {value}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                  <div key={log.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold self-start ${getActionBadgeColor(log.action)}`}>
+                        {log.action.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatTimestamp(log.timestamp)}
+                      </span>
                     </div>
+                    <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 mt-2">
+                      <strong>Performed by:</strong> {log.performedBy}
+                    </p>
+                    {log.details && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-2 bg-gray-50 dark:bg-gray-700 p-2 rounded break-words">
+                        {Object.entries(log.details).map(([key, value]) => (
+                          <div key={key}>
+                            <strong>{key}:</strong> {value}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1365,21 +1391,21 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ========== BACKUP & RECOVERY TAB ========== */}
+        {/* ========== BACKUP & RECOVERY TAB – responsive ========== */}
         {activeTab === 'backup' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Backup & Recovery</h2>
-              <div className="flex gap-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">Backup & Recovery</h2>
+              <div className="flex flex-col xs:flex-row gap-3 w-full sm:w-auto">
                 <button
                   onClick={handleExportBackup}
                   disabled={backupLoading}
-                  className="bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center gap-2 disabled:opacity-50"
+                  className="w-full xs:w-auto bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                 >
                   <Download size={18} />
                   {backupLoading ? 'Exporting...' : 'Export Backup'}
                 </button>
-                <label className="bg-green-600 dark:bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center gap-2 cursor-pointer">
+                <label className="w-full xs:w-auto bg-green-600 dark:bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 flex items-center justify-center gap-2 cursor-pointer text-sm">
                   <Upload size={18} />
                   Restore Backup
                   <input
@@ -1394,20 +1420,21 @@ export default function AdminDashboard() {
             </div>
 
             {backupMessage && (
-              <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${backupMessage.type === 'success'
-                ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800'
-                }`}>
+              <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm ${
+                backupMessage.type === 'success'
+                  ? 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-400 border border-green-200 dark:border-green-800'
+                  : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-400 border border-red-200 dark:border-red-800'
+              }`}>
                 {backupMessage.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-                {backupMessage.text}
+                <span className="break-words">{backupMessage.text}</span>
               </div>
             )}
 
             <div className="mb-6">
-              <h3 className="font-semibold text-lg mb-3 text-gray-800 dark:text-gray-200">Select Collections to Backup</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <h3 className="font-semibold text-base sm:text-lg mb-3 text-gray-800 dark:text-gray-200">Select Collections to Backup</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
                 {collectionList.map(col => (
-                  <label key={col} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer">
+                  <label key={col} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer text-xs sm:text-sm">
                     <input
                       type="checkbox"
                       checked={selectedCollections.includes(col)}
@@ -1420,7 +1447,7 @@ export default function AdminDashboard() {
                       }}
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{col}</span>
+                    <span className="text-gray-700 dark:text-gray-300 truncate">{col}</span>
                   </label>
                 ))}
               </div>
@@ -1438,15 +1465,15 @@ export default function AdminDashboard() {
             <div className="mt-8 border-t-2 border-red-200 dark:border-red-800 pt-6">
               <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-5">
                 <div className="flex items-center gap-3 mb-4">
-                  <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
-                  <h3 className="text-lg font-bold text-red-800 dark:text-red-300">⚠️ Danger Zone – Total Cleaner</h3>
+                  <AlertCircle className="text-red-600 dark:text-red-400 flex-shrink-0" size={24} />
+                  <h3 className="text-base sm:text-lg font-bold text-red-800 dark:text-red-300">⚠️ Danger Zone – Total Cleaner</h3>
                 </div>
-                <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+                <p className="text-xs sm:text-sm text-red-700 dark:text-red-400 mb-4">
                   This will <strong>permanently delete ALL documents</strong> from the selected collections below.
                   Use only to test backup & restore functionality.
                 </p>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-red-800 dark:text-red-300 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-red-800 dark:text-red-300 mb-2">
                     Confirm by typing <span className="font-mono bg-red-100 dark:bg-red-800 px-2 py-1 rounded">DELETE</span>:
                   </label>
                   <input
@@ -1454,13 +1481,13 @@ export default function AdminDashboard() {
                     value={deleteConfirmText}
                     onChange={(e) => setDeleteConfirmText(e.target.value)}
                     placeholder="Type DELETE to confirm"
-                    className="w-full md:w-64 px-4 py-2 border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
+                    className="w-full md:w-64 px-4 py-2 text-sm border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent"
                   />
                 </div>
                 <button
                   onClick={handleClearCollections}
                   disabled={deleteConfirmText !== 'DELETE' || clearLoading}
-                  className="bg-red-600 dark:bg-red-700 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                  className="w-full md:w-auto bg-red-600 dark:bg-red-700 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm"
                 >
                   {clearLoading ? (
                     <>
@@ -1482,7 +1509,7 @@ export default function AdminDashboard() {
 
             {/* Instructions */}
             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-6">
-              <p className="text-sm text-blue-800 dark:text-blue-400">
+              <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-400">
                 <strong>📌 How it works:</strong><br />
                 • <strong>Export:</strong> Downloads a JSON file containing all documents from selected collections.<br />
                 • <strong>Restore:</strong> Upload a previously exported JSON file to restore data. <span className="font-bold">Existing documents with same ID will be overwritten.</span><br />
@@ -1493,18 +1520,18 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Token Generation Modal */}
+      {/* ✅ RESPONSIVE TOKEN GENERATION MODAL */}
       {showTokenModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 transition-colors duration-300">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Generate Access Token</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-sm sm:max-w-md w-full p-5 sm:p-6 transition-colors duration-300 shadow-xl">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Generate Access Token</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
                 <select
                   value={newToken.department}
                   onChange={(e) => setNewToken({ ...newToken, department: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
                 >
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
@@ -1512,26 +1539,26 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Expires In (days)</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Expires In (days)</label>
                 <input
                   type="number"
                   value={newToken.expiresIn}
                   onChange={(e) => setNewToken({ ...newToken, expiresIn: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
                   min="1"
                   max="365"
                 />
               </div>
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-col xs:flex-row gap-3 mt-6">
                 <button
                   onClick={generateToken}
-                  className="flex-1 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+                  className="flex-1 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors text-sm"
                 >
                   Generate
                 </button>
                 <button
                   onClick={() => setShowTokenModal(false)}
-                  className="flex-1 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
+                  className="flex-1 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors text-sm"
                 >
                   Cancel
                 </button>
@@ -1541,20 +1568,20 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Requirement Modal */}
+      {/* ✅ RESPONSIVE REQUIREMENT MODAL */}
       {showRequirementModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 transition-colors duration-300">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-sm sm:max-w-md w-full p-5 sm:p-6 transition-colors duration-300 shadow-xl">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">
               {editingRequirement ? 'Edit Requirement' : 'Add Requirement'}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
                 <select
                   value={newRequirement.department}
                   onChange={(e) => setNewRequirement({ ...newRequirement, department: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
                 >
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
@@ -1562,21 +1589,21 @@ export default function AdminDashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
                 <input
                   type="text"
                   value={newRequirement.title}
                   onChange={(e) => setNewRequirement({ ...newRequirement, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
                   placeholder="e.g., No Pending Books"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
                 <textarea
                   value={newRequirement.description}
                   onChange={(e) => setNewRequirement({ ...newRequirement, description: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg transition-colors duration-300"
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg"
                   rows="3"
                   placeholder="Describe what the student needs to submit..."
                 />
@@ -1589,14 +1616,14 @@ export default function AdminDashboard() {
                   id="required-check"
                   className="w-4 h-4"
                 />
-                <label htmlFor="required-check" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="required-check" className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Required (mandatory for clearance)
                 </label>
               </div>
-              <div className="flex gap-3 mt-6">
+              <div className="flex flex-col xs:flex-row gap-3 mt-6">
                 <button
                   onClick={saveRequirement}
-                  className="flex-1 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+                  className="flex-1 bg-indigo-600 dark:bg-indigo-500 text-white py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors text-sm"
                 >
                   {editingRequirement ? 'Update' : 'Add'}
                 </button>
@@ -1611,7 +1638,7 @@ export default function AdminDashboard() {
                       required: true
                     });
                   }}
-                  className="flex-1 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
+                  className="flex-1 bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors text-sm"
                 >
                   Cancel
                 </button>
