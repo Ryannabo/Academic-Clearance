@@ -1,8 +1,8 @@
-// src/components/StudentDashboard.jsx – FIXED UPLOAD TAB + STUDENT ID
+// src/components/StudentDashboard.jsx – FIXED: rejected allows re‑upload
 import React, { useState, useEffect } from 'react';
 import {
   Upload, CheckCircle, Clock, Download, Bell, User,
-  XCircle, AlertCircle, FileText, BookOpen, List // ✅ added List
+  XCircle, AlertCircle, FileText, BookOpen, List
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import NotificationPanel from './NotificationPanel';
@@ -64,15 +64,12 @@ export default function StudentDashboard() {
 
     const fetchStudentData = async () => {
       try {
-        // 1. Try to get student document
         const studentDoc = await getDoc(doc(db, 'students', user.uid));
-
         if (studentDoc.exists()) {
           const data = studentDoc.data();
           setStudentData({
             id: studentDoc.id,
             ...data,
-            // Normalize field names – some docs may use studentIdNumber
             studentId: data.studentId || data.studentIdNumber || 'Not set',
             course: data.course || 'No course',
             yearLevel: data.yearLevel || 'No year',
@@ -81,47 +78,27 @@ export default function StudentDashboard() {
           });
           console.log('✅ Student data loaded from students collection');
         } else {
-          // 2. Fallback to user document (contains student fields from signup)
           console.warn('⚠️ Student document not found, checking user document...');
           const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-          if (userDoc.exists()) {
+          if (userDoc.exists() && userDoc.data().role === 'student') {
             const userData = userDoc.data();
-            // Only use if it's a student role
-            if (userData.role === 'student') {
-              setStudentData({
-                id: user.uid,
-                name: userData.name || user.displayName || 'Student',
-                email: user.email,
-                studentId: userData.studentId || 'Not set',
-                course: userData.course || 'No course',
-                yearLevel: userData.yearLevel || 'No year',
-                semester: userData.semester || 'No semester',
-                section: userData.section || 'N/A'
-              });
-              console.log('✅ Using user document as fallback');
-            } else {
-              // Not a student – shouldn't happen, but handle gracefully
-              setStudentData(null);
-            }
-          } else {
-            // 3. No data at all – create minimal placeholder
-            console.error('❌ No student or user document found');
             setStudentData({
               id: user.uid,
-              name: user.displayName || user.email?.split('@')[0] || 'Student',
+              name: userData.name || user.displayName || 'Student',
               email: user.email,
-              studentId: 'Not set',
-              course: 'No course',
-              yearLevel: 'No year',
-              semester: 'No semester',
-              section: 'N/A'
+              studentId: userData.studentId || 'Not set',
+              course: userData.course || 'No course',
+              yearLevel: userData.yearLevel || 'No year',
+              semester: userData.semester || 'No semester',
+              section: userData.section || 'N/A'
             });
+            console.log('✅ Using user document as fallback');
+          } else {
+            setStudentData(null);
           }
         }
       } catch (error) {
         console.error('🔥 Error fetching student data:', error);
-        // Still set minimal data to avoid UI breaking
         setStudentData({
           id: user.uid,
           name: user.displayName || user.email?.split('@')[0] || 'Student',
@@ -503,7 +480,7 @@ export default function StudentDashboard() {
     }
   };
 
-  const approvedCount = departments.filter(d => requirements[d.id]?.status === 'approved').length;
+   const approvedCount = departments.filter(d => requirements[d.id]?.status === 'approved').length;
   const submittedCount = departments.filter(d => requirements[d.id]).length;
   const progress = submittedCount > 0 ? (approvedCount / submittedCount) * 100 : 0;
 
@@ -518,17 +495,12 @@ export default function StudentDashboard() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────
-  // ✅ FULLY RESPONSIVE RENDER (ONLY UI CHANGES)
-  // ─────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 overflow-x-hidden">
 
-      {/* ✅ RESPONSIVE NAVBAR – stacks on mobile, truncates long names */}
+      {/* ✅ RESPONSIVE NAVBAR */}
       <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-
-          {/* Logo / Title */}
           <div className="flex items-center gap-2">
             <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg">
               <CheckCircle className="text-indigo-600 dark:text-indigo-400" size={24} />
@@ -537,8 +509,6 @@ export default function StudentDashboard() {
               Clearance System
             </h1>
           </div>
-
-          {/* User controls – all in one row, minimal spacing */}
           <div className="flex items-center justify-end gap-0.5 sm:gap-1.5">
             <DarkModeToggle />
             <NotificationPanel />
@@ -561,29 +531,24 @@ export default function StudentDashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
-        {/* ✅ WELCOME CARD – already responsive, adjust padding */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-6 p-5 sm:p-6 transition-colors duration-300">
+        {/* Welcome Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-6 p-5 sm:p-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="w-full md:w-auto">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100 break-words">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">
                 Welcome, {user?.name}
               </h2>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 break-words">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
                 Student ID: {studentData?.studentId || studentData?.studentIdNumber || 'Not set'}
               </p>
-              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500 break-words">
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500">
                 {studentData?.course || 'No course'} - {studentData?.yearLevel || 'No year'} - {studentData?.semester || 'No semester'} - Sec {studentData?.section || 'N/A'}
               </p>
-
-              {/* Progress bar – responsive width */}
               <div className="mt-3 w-full sm:w-64 md:w-72">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Progress:
-                  </span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Progress:</span>
                   <span className="text-xs sm:text-sm text-indigo-600 dark:text-indigo-400 font-bold">
                     {approvedCount}/{submittedCount} Approved
                   </span>
@@ -592,18 +557,13 @@ export default function StudentDashboard() {
                   </span>
                 </div>
                 <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-indigo-600 dark:bg-indigo-500 transition-all"
-                    style={{ width: `${progress}%` }}
-                  ></div>
+                  <div className="h-full bg-indigo-600 dark:bg-indigo-500 transition-all" style={{ width: `${progress}%` }}></div>
                 </div>
               </div>
             </div>
-
-            {/* PDF Export Button */}
             <button
               onClick={exportToPDF}
-              className="flex items-center gap-2 bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors whitespace-nowrap text-sm sm:text-base w-full sm:w-auto justify-center"
+              className="flex items-center gap-2 bg-indigo-600 dark:bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 dark:hover:bg-indigo-600 text-sm sm:text-base w-full sm:w-auto justify-center"
             >
               <Download size={18} />
               <span>Export PDF</span>
@@ -611,34 +571,37 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* ✅ TABS – responsive, smaller gap/padding on mobile */}
+        {/* Tabs */}
         <div className="flex gap-2 sm:gap-4 mb-6 overflow-x-auto pb-1">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${activeTab === 'overview'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'overview'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
             <CheckCircle size={16} className="inline mr-1 sm:mr-2" />
             Overview
           </button>
           <button
             onClick={() => setActiveTab('requirements')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${activeTab === 'requirements'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'requirements'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
             <BookOpen size={16} className="inline mr-1 sm:mr-2" />
             Requirements
           </button>
           <button
             onClick={() => setActiveTab('upload')}
-            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${activeTab === 'upload'
-              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+            className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors text-sm sm:text-base ${
+              activeTab === 'upload'
+                ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
           >
             <Upload size={16} className="inline mr-1 sm:mr-2" />
             Upload
@@ -647,35 +610,36 @@ export default function StudentDashboard() {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6">
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Status Summary</h3>
             {departments.map(dept => {
               const req = requirements[dept.id];
               const status = req?.status || 'not_submitted';
               return (
-                <div key={dept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 hover:shadow-md transition-all">
+                <div key={dept.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-3 hover:shadow-md">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{dept.icon}</span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-gray-800 dark:text-gray-100 break-words">{dept.name}</p>
+                      <div>
+                        <p className="font-semibold text-gray-800 dark:text-gray-100">{dept.name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-500">
                           {!req ? 'Not submitted' : `${req.files?.length || 0} files`}
                         </p>
                       </div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold self-start sm:self-center ${status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold self-start sm:self-center ${
+                      status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
                       status === 'rejected' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' :
-                        req ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400' :
-                          'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                      }`}>
+                      req ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400' :
+                      'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                    }`}>
                       {status === 'approved' ? '✓ Approved' : status === 'rejected' ? '✗ Rejected' : req ? '⏳ Pending' : '○ Not Submitted'}
                     </span>
                   </div>
                   {status === 'rejected' && req.rejectionReason && (
                     <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
-                      <p className="text-sm font-medium text-red-800 dark:text-red-400 break-words">Reason: {req.rejectionReason}</p>
-                      {req.missingRequirements && <p className="text-sm text-red-700 dark:text-red-400 mt-1 break-words">Missing: {req.missingRequirements}</p>}
+                      <p className="text-sm font-medium text-red-800 dark:text-red-400">Reason: {req.rejectionReason}</p>
+                      {req.missingRequirements && <p className="text-sm text-red-700 dark:text-red-400 mt-1">Missing: {req.missingRequirements}</p>}
                     </div>
                   )}
                 </div>
@@ -686,7 +650,7 @@ export default function StudentDashboard() {
 
         {/* Requirements Tab */}
         {activeTab === 'requirements' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 transition-colors duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
               <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100">Clearance Requirements</h3>
               <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
@@ -728,10 +692,11 @@ export default function StudentDashboard() {
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 break-words">
                                   {req.description || 'No description provided.'}
                                 </p>
-                                <span className={`inline-block px-2 py-1 mt-2 text-xs font-medium rounded-full ${req.required
-                                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
-                                  }`}>
+                                <span className={`inline-block px-2 py-1 mt-2 text-xs font-medium rounded-full ${
+                                  req.required
+                                    ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400'
+                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400'
+                                }`}>
                                   {req.required ? 'Required' : 'Optional'}
                                 </span>
                               </div>
@@ -747,7 +712,7 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* ✅ UPLOAD TAB – already responsive grid */}
+        {/* ✅ UPLOAD TAB – modified for rejected departments to allow re‑upload */}
         {activeTab === 'upload' && (
           <div>
             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
@@ -764,6 +729,7 @@ export default function StudentDashboard() {
                 const req = requirements[dept.id];
                 const isApproved = req?.status === 'approved';
                 const isRejected = req?.status === 'rejected';
+                const showUpload = !isApproved; // show for rejected and pending/not submitted
 
                 return (
                   <div key={dept.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-5 sm:p-6 hover:shadow-md transition-all">
@@ -782,84 +748,85 @@ export default function StudentDashboard() {
                     </div>
 
                     {isApproved ? (
+                      // ✅ Approved – no upload, just success message
                       <div className="border-2 border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-900/30 rounded-lg p-6 text-center">
                         <CheckCircle className="mx-auto mb-2 text-green-600 dark:text-green-400" size={40} />
                         <p className="font-semibold text-green-800 dark:text-green-400">Approved ✓</p>
                       </div>
-                    ) : isRejected ? (
-                      <div className="border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/30 rounded-lg p-6 text-center">
-                        <XCircle className="mx-auto mb-2 text-red-600 dark:text-red-400" size={40} />
-                        <p className="font-semibold text-red-800 dark:text-red-400">Rejected ✗</p>
-                        {req?.rejectionReason && (
-                          <p className="text-xs text-red-700 dark:text-red-400 mt-2 break-words">{req.rejectionReason}</p>
-                        )}
-                      </div>
                     ) : (
-                      <label className="block">
-                        <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${uploading[dept.id]
-                          ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 cursor-not-allowed'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
-                          }`}>
-                          <Upload className="mx-auto mb-2 text-gray-400 dark:text-gray-500" size={24} />
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {uploading[dept.id] ? 'Uploading...' : 'Click to upload'}
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">PDF/JPG/PNG/WEBP (5MB max)</p>
-                          <input
-                            type="file"
-                            multiple
-                            accept=".pdf,.jpg,.jpeg,.png,.webp"
-                            className="hidden"
-                            onChange={(e) => handleFileUpload(dept.id, e)}
-                            disabled={uploading[dept.id]}
-                          />
-                        </div>
-                      </label>
-                    )}
-
-                    {/* Uploaded files list */}
-                    {req?.files && req.files.length > 0 && !isApproved && !isRejected && (
-                      <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-                        <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                          {getStatusIcon(req.status)} {getStatusText(req.status)}
-                        </p>
-                        <div className="space-y-2">
-                          {req.files.slice(-3).map((file, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
-                              <FileText size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                              <p className="text-xs flex-1 ml-2 truncate text-gray-800 dark:text-gray-200">
-                                {file.name}
-                              </p>
-                              <button
-                                onClick={() => previewFileHandler(file)}
-                                className="text-indigo-600 dark:text-indigo-400 text-xs px-2 py-1 border rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 whitespace-nowrap"
-                              >
-                                Preview
-                              </button>
-                            </div>
-                          ))}
-                          {req.files.length > 3 && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                              +{req.files.length - 3} more file(s)
+                      <>
+                        {/* Show rejection reason if rejected */}
+                        {isRejected && (
+                          <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg">
+                            <p className="text-sm font-medium text-red-800 dark:text-red-400">
+                              Rejected: {req?.rejectionReason}
                             </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                            {req?.missingRequirements && (
+                              <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                                Missing: {req.missingRequirements}
+                              </p>
+                            )}
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                              Please upload corrected files.
+                            </p>
+                          </div>
+                        )}
 
-                    {/* Approved/Rejected summary */}
-                    {req?.files && req.files.length > 0 && (isApproved || isRejected) && (
-                      <div className={`mt-3 p-3 rounded-lg ${isApproved
-                        ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800'
-                        : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800'
-                        }`}>
-                        <p className="text-sm font-medium mb-2 flex items-center gap-1">
-                          {getStatusIcon(req.status)} {getStatusText(req.status)}
-                        </p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400">
-                          {req.files.length} file(s) submitted
-                        </p>
-                      </div>
+                        {/* Upload area – shown for rejected, pending, or not submitted */}
+                        <label className="block">
+                          <div className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all ${
+                            uploading[dept.id]
+                              ? 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 cursor-not-allowed'
+                              : 'border-gray-300 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                          }`}>
+                            <Upload className="mx-auto mb-2 text-gray-400 dark:text-gray-500" size={24} />
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {uploading[dept.id] ? 'Uploading...' : 'Click to upload'}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              PDF/JPG/PNG/WEBP (5MB max)
+                            </p>
+                            <input
+                              type="file"
+                              multiple
+                              accept=".pdf,.jpg,.jpeg,.png,.webp"
+                              className="hidden"
+                              onChange={(e) => handleFileUpload(dept.id, e)}
+                              disabled={uploading[dept.id]}
+                            />
+                          </div>
+                        </label>
+
+                        {/* Show existing files (for rejected or pending) */}
+                        {req?.files && req.files.length > 0 && (
+                          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                            <p className="text-sm font-medium mb-2 flex items-center gap-1">
+                              {getStatusIcon(req.status)} {getStatusText(req.status)}
+                            </p>
+                            <div className="space-y-2">
+                              {req.files.slice(-3).map((file, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600">
+                                  <FileText size={16} className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                                  <p className="text-xs flex-1 ml-2 truncate text-gray-800 dark:text-gray-200">
+                                    {file.name}
+                                  </p>
+                                  <button
+                                    onClick={() => previewFileHandler(file)}
+                                    className="text-indigo-600 dark:text-indigo-400 text-xs px-2 py-1 border rounded hover:bg-indigo-50 dark:hover:bg-indigo-900/30 whitespace-nowrap"
+                                  >
+                                    Preview
+                                  </button>
+                                </div>
+                              ))}
+                              {req.files.length > 3 && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  +{req.files.length - 3} more file(s)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );
@@ -869,10 +836,8 @@ export default function StudentDashboard() {
         )}
       </div>
 
-      {/* ✅ PROFILE MODAL – always rendered, but visibility controlled */}
       <ProfileView isOpen={showProfile} onClose={() => setShowProfile(false)} />
 
-      {/* ✅ FILE PREVIEW MODAL – already responsive */}
       {previewFile && (
         <div className="fixed inset-0 bg-black bg-opacity-75 dark:bg-opacity-90 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
